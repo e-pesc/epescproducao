@@ -1,0 +1,1 @@
+DROP TRIGGER IF EXISTS deduct_stock_on_sale ON public.vendas;

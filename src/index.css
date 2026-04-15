@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 20% 96%;
+    --foreground: 215 35% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 35% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 35% 15%;
+
+    --primary: 210 60% 22%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 187 70% 45%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 210 15% 90%;
+    --muted-foreground: 215 15% 50%;
+
+    --accent: 187 70% 45%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 15% 88%;
+    --input: 210 15% 88%;
+    --ring: 187 70% 45%;
+
+    --radius: 1rem;
+
+    /* Custom tokens */
+    --fish-whole: 210 60% 50%;
+    --fish-whole-light: 210 60% 94%;
+    --fish-treated: 155 55% 42%;
+    --fish-treated-light: 155 55% 92%;
+    --nav-height: 4.5rem;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer utilities {
+  .safe-bottom {
+    padding-bottom: calc(var(--nav-height) + 0.5rem);
+  }
+  @media (min-width: 768px) {
+    .safe-bottom {
+      padding-bottom: 0;
+    }
+  }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+@keyframes slide-down {
+  from { transform: translateY(0); }
+  to { transform: translateY(100%); }
+}
