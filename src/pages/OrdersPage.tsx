@@ -261,11 +261,16 @@ function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete, onCancel }:
   });
 
   return (
-    <div className={cn("rounded-3xl bg-card p-4 shadow-sm border-l-4", isPendente ? "border-l-amber-400" : "border-l-fish-treated opacity-80")}>
+    <div className={cn(
+      "rounded-3xl bg-card p-4 shadow-sm border-l-4",
+      isCancelled ? "border-l-destructive opacity-70" : isPendente ? "border-l-amber-400" : "border-l-fish-treated opacity-80"
+    )}>
       <div className="flex items-start justify-between mb-1">
         <div className="flex items-center gap-2">
-          <h3 className="font-bold text-foreground text-base">{client?.nome || "—"}</h3>
-          {order.status === "atendido" ? (
+          <h3 className={cn("font-bold text-foreground text-base", isCancelled && "line-through")}>{client?.nome || "—"}</h3>
+          {isCancelled ? (
+            <Badge className="bg-destructive hover:bg-destructive text-destructive-foreground text-[10px] px-2 py-0.5 font-bold tracking-wide">CANCELADO</Badge>
+          ) : order.status === "atendido" ? (
             <Badge className="bg-primary hover:bg-primary text-primary-foreground text-[10px] px-2 py-0.5 font-bold tracking-wide">ATENDIDO</Badge>
           ) : order.prepaid ? (
             <Badge className="bg-fish-treated hover:bg-fish-treated text-white text-[10px] px-2 py-0.5 font-bold tracking-wide">PAGO</Badge>
@@ -275,7 +280,7 @@ function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete, onCancel }:
         </div>
         <span className="text-sm font-bold text-muted-foreground">#{String(order.numero || 0).padStart(3, "0")}</span>
         <div className="text-right">
-          <span className="text-lg font-bold text-foreground">{formatBRL(Number(order.valor_total))}</span>
+          <span className={cn("text-lg font-bold text-foreground", isCancelled && "line-through")}>{formatBRL(Number(order.valor_total))}</span>
           {!isPendente && <p className="text-[10px] text-muted-foreground">{order.pagamento === "prazo" ? "A Prazo" : "À Vista"}</p>}
           {isPendente && order.prepaid && order.prepaid_method && (
             <p className="text-[10px] text-fish-treated font-medium">via {PREPAID_METHODS.find(m => m.value === order.prepaid_method)?.label}</p>
@@ -313,7 +318,17 @@ function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete, onCancel }:
           );
         })}
       </div>
-      {isPendente && (
+      {isCancelled && order.cancelado_motivo && (
+        <div className="rounded-2xl bg-destructive/10 border border-destructive/20 p-2 text-xs text-foreground mb-2">
+          <span className="font-semibold">Motivo: </span>{order.cancelado_motivo}
+          {order.cancelado_at && (
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              em {new Date(order.cancelado_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+            </p>
+          )}
+        </div>
+      )}
+      {isPendente && !isCancelled && (
         <div className="flex gap-2">
           {onFulfill && (
             <Button size="sm" className={cn("flex-1 rounded-2xl", !canFulfill && "opacity-50")} disabled={!canFulfill} onClick={() => onFulfill(order)}>
@@ -327,6 +342,11 @@ function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete, onCancel }:
             </AlertDialog>
           )}
         </div>
+      )}
+      {!isPendente && !isCancelled && onCancel && (
+        <Button variant="outline" size="sm" className="w-full rounded-2xl text-destructive border-destructive/40 hover:bg-destructive/10" onClick={() => onCancel(order)}>
+          <XCircle className="w-4 h-4" /> Cancelar Pedido
+        </Button>
       )}
     </div>
   );
