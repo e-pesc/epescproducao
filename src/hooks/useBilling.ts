@@ -390,7 +390,7 @@ export function useBilling() {
   return {
     dividasCompra, pagamentosSaida, pagamentosEntrada, loading,
     addDividaCompra, payDivida, addPagamentoEntrada, addPagamentoSaida, receiveFromClient, cancelDivida,
-    addDespesa,
+    addDespesa, addReceita, quitarReceita,
     refetch: invalidateAll,
   };
 }
