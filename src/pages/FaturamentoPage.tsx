@@ -613,7 +613,7 @@ export function FaturamentoPage() {
     .reduce((sum, p) => sum + Number(p.valor), 0), [pagamentosSaida, filterMonth, filterYear]);
 
   const totalEntradas = useMemo(() => pagamentosEntrada
-    .filter((p) => inMonth(p.created_at) && !p.cancelado)
+    .filter((p) => inMonth(p.created_at) && !p.cancelado && p.tipo !== "pendente")
     .reduce((sum, p) => sum + Number(p.valor), 0), [pagamentosEntrada, filterMonth, filterYear]);
 
   const cardsLoading = loading || loadingClientes;
