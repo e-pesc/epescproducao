@@ -212,15 +212,24 @@ function TabAPagar({ filterMonth, filterYear }: { filterMonth: number; filterYea
       {openDebts.length === 0 ? <EmptyState text="Nenhuma dívida pendente com fornecedores" /> : (
         <div className="space-y-3">
           {openDebts.map((debt) => {
-            const supplier = fornecedores.find((s) => s.id === debt.fornecedor_id);
-            const product = produtos.find((p) => p.id === debt.produto_id);
+            const supplier = debt.fornecedor_id ? fornecedores.find((s) => s.id === debt.fornecedor_id) : null;
+            const product = debt.produto_id ? produtos.find((p) => p.id === debt.produto_id) : null;
             const remaining = +(Number(debt.valor_total) - Number(debt.valor_pago)).toFixed(2);
+            const isDespesa = !debt.fornecedor_id && !!debt.descricao;
             return (
               <div key={debt.id} className="rounded-3xl bg-card p-4 shadow-sm border-l-4 border-l-destructive">
                 <div className="flex items-start justify-between mb-2">
                   <div>
-                    <h3 className="font-bold text-foreground text-base">{supplier?.nome || "—"}</h3>
-                    <p className="text-xs text-muted-foreground">{product?.nome} ({product?.sku})</p>
+                    <h3 className="font-bold text-foreground text-base">
+                      {isDespesa ? debt.descricao : (supplier?.nome || "—")}
+                    </h3>
+                    {isDespesa ? (
+                      <p className="text-xs text-muted-foreground">
+                        Despesa{debt.recorrente ? " • Recorrente" : ""}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">{product?.nome} ({product?.sku})</p>
+                    )}
                   </div>
                   <div className="text-right">
                     <span className="text-lg font-bold text-destructive">{formatBRL(remaining)}</span>
@@ -228,8 +237,7 @@ function TabAPagar({ filterMonth, filterYear }: { filterMonth: number; filterYea
                   </div>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
-                  <span>{Number(debt.kg)} kg</span>
-                  <span>{formatBRL(Number(debt.preco_kg))}/kg</span>
+                  {!isDespesa && <><span>{Number(debt.kg)} kg</span><span>{formatBRL(Number(debt.preco_kg))}/kg</span></>}
                   <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(debt.created_at).toLocaleDateString("pt-BR")}</span>
                 </div>
                 <Button size="sm" className="w-full rounded-2xl" onClick={() => setPayingDebt(debt)}><Wallet className="w-4 h-4" /> Quitar</Button>
