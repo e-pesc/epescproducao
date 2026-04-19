@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SlideUpModal } from "@/components/SlideUpModal";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Power, Store, Search, CheckCircle2, Clock, MessageCircle, Users, KeyRound } from "lucide-react";
+import { Plus, Pencil, Trash2, Power, Store, Search, CheckCircle2, Clock, MessageCircle, Users, KeyRound, ChevronLeft, ChevronRight, Award } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
