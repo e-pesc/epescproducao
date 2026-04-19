@@ -419,7 +419,8 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
       endereco: endereco.trim(),
       cidade: cidade.trim(),
       dia_pagamento: parseInt(diaPagamento) || 10,
-      mensalidade: parseFloat(mensalidade) || 0,
+      mensalidade: parseFloat(mensalidade) || MENSALIDADE_BASE,
+      vendedor_root_id: vendaNegociada && vendedorRootId ? vendedorRootId : null,
     };
 
     if (editPeixaria) {
