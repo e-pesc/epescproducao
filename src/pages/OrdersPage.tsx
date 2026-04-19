@@ -247,12 +247,13 @@ function MonthNavigator({ month, year, onPrev, onNext, searchValue, onSearchChan
 }
 
 // ─── Order Card ───
-function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete }: {
-  order: Pedido; isPendente: boolean; onEdit?: (o: Pedido) => void; onFulfill?: (o: Pedido) => void; onDelete?: (o: Pedido) => void;
+function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete, onCancel }: {
+  order: Pedido; isPendente: boolean; onEdit?: (o: Pedido) => void; onFulfill?: (o: Pedido) => void; onDelete?: (o: Pedido) => void; onCancel?: (o: Pedido) => void;
 }) {
   const { clientes } = useClientes();
   const { produtos } = useProdutos();
   const client = clientes.find((c) => c.id === order.cliente_id);
+  const isCancelled = !!order.cancelado;
 
   const canFulfill = (order.itens ?? []).every((item) => {
     const product = produtos.find((p) => p.id === item.produto_id);
