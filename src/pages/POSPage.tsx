@@ -7,11 +7,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/SearchableSelect";
-import { ShoppingCart, Check, Plus, Trash2, Pencil } from "lucide-react";
+import { ShoppingCart, Check, Plus, Trash2, Pencil, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatBRL } from "@/lib/format";
+import { SalesHistoryModal } from "@/components/SalesHistoryModal";
 
 interface CartItem {
   produto_id: string;
@@ -36,6 +37,7 @@ export function POSPage() {
 
   // Cart state
   const [cart, setCart] = useState<CartItem[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // Item form state
   const [selectedProductId, setSelectedProductId] = useState("");
@@ -179,9 +181,14 @@ export function POSPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-2">
-        <ShoppingCart className="w-6 h-6 text-secondary" />
-        <h1 className="text-xl font-bold text-foreground">Frente de Caixa</h1>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <ShoppingCart className="w-6 h-6 text-secondary" />
+          <h1 className="text-xl font-bold text-foreground">Frente de Caixa</h1>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)}>
+          <History className="w-4 h-4" /> Histórico
+        </Button>
       </div>
 
       <div className="md:grid md:grid-cols-2 md:gap-6 space-y-5 md:space-y-0">
@@ -293,13 +300,22 @@ export function POSPage() {
                   )}
                 </div>
               )}
-              <Button size="lg" className="w-full" onClick={handleSale} disabled={submitting}>
+              <Button
+                size="lg"
+                className={cn(
+                  "w-full transition-colors",
+                  submitting && "bg-muted text-muted-foreground hover:bg-muted cursor-not-allowed"
+                )}
+                onClick={handleSale}
+                disabled={submitting}
+              >
                 {submitting ? "Processando..." : <><Check className="w-5 h-5" /> Finalizar Venda</>}
               </Button>
             </div>
           )}
         </div>
       </div>
+      <SalesHistoryModal open={historyOpen} onOpenChange={setHistoryOpen} />
     </div>
   );
 }
