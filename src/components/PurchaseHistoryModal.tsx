@@ -42,22 +42,43 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
   const prevMonth = () => { if (month === 0) { setMonth(11); setYear((y) => y - 1); } else setMonth((m) => m - 1); };
   const nextMonth = () => { if (month === 11) { setMonth(0); setYear((y) => y + 1); } else setMonth((m) => m + 1); };
 
-  const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return dividasCompra.filter((d) => {
+  // Agrupa itens da mesma compra: mesmo fornecedor + mesmo created_at (truncado em segundos)
+  const grouped = useMemo(() => {
+    const map = new Map<string, DividaCompra[]>();
+    for (const d of dividasCompra) {
       const dt = new Date(d.created_at);
-      if (dt.getMonth() !== month || dt.getFullYear() !== year) return false;
-      if (!term) return true;
-      const f = fornecedores.find((x) => x.id === d.fornecedor_id);
-      const p = produtos.find((x) => x.id === d.produto_id);
-      return (f?.nome ?? "").toLowerCase().includes(term) || (p?.nome ?? "").toLowerCase().includes(term);
+      if (dt.getMonth() !== month || dt.getFullYear() !== year) continue;
+      const sec = Math.floor(dt.getTime() / 1000);
+      const key = `${d.fornecedor_id ?? "_"}|${sec}`;
+      const arr = map.get(key) ?? [];
+      arr.push(d);
+      map.set(key, arr);
+    }
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b[0].created_at).getTime() - new Date(a[0].created_at).getTime()
+    );
+  }, [dividasCompra, month, year]);
+
+  const filteredGroups = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return grouped;
+    return grouped.filter((group) => {
+      const f = fornecedores.find((x) => x.id === group[0].fornecedor_id);
+      if ((f?.nome ?? "").toLowerCase().includes(term)) return true;
+      return group.some((d) => {
+        const p = produtos.find((x) => x.id === d.produto_id);
+        return (p?.nome ?? "").toLowerCase().includes(term);
+      });
     });
-  }, [dividasCompra, month, year, search, fornecedores, produtos]);
+  }, [grouped, search, fornecedores, produtos]);
 
   const handleCancel = async (motivo: string) => {
-    if (!cancelTarget) return;
+    if (!cancelTarget || cancelTarget.length === 0) return;
     try {
-      await cancelDivida(cancelTarget.id, motivo);
+      // Cancela todos os itens do grupo (mesma compra)
+      for (const d of cancelTarget) {
+        if (!d.cancelado) await cancelDivida(d.id, motivo);
+      }
       await Promise.all([refetch(), refetchProdutos()]);
       toast({ title: "Compra cancelada", description: "Estoque e pagamentos foram estornados." });
       setCancelTarget(null);
