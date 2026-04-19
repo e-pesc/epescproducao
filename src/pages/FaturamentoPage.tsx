@@ -665,7 +665,7 @@ export function FaturamentoPage() {
           <TabsTrigger value="entradas" className="rounded-xl text-[11px] px-1">Entradas</TabsTrigger>
         </TabsList>
         <TabsContent value="apagar"><TabAPagar filterMonth={filterMonth} filterYear={filterYear} /></TabsContent>
-        <TabsContent value="areceber"><TabAReceber /></TabsContent>
+        <TabsContent value="areceber"><TabAReceber filterMonth={filterMonth} filterYear={filterYear} /></TabsContent>
         <TabsContent value="saidas"><TabSaidas filterMonth={filterMonth} filterYear={filterYear} /></TabsContent>
         <TabsContent value="entradas"><TabEntradas filterMonth={filterMonth} filterYear={filterYear} /></TabsContent>
       </Tabs>
