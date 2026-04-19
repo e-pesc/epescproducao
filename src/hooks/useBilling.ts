@@ -35,6 +35,8 @@ export interface PagamentoEntrada {
   valor: number;
   tipo: string;
   created_at: string;
+  cancelado?: boolean;
+  cancelado_at?: string | null;
 }
 
 const BILLING_KEYS = {

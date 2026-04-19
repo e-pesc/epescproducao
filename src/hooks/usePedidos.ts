@@ -25,6 +25,9 @@ export interface Pedido {
   fulfilled_at: string | null;
   itens?: ItemPedido[];
   peixaria_id: string | null;
+  cancelado?: boolean;
+  cancelado_motivo?: string | null;
+  cancelado_at?: string | null;
 }
 
 export function usePedidos() {
@@ -150,5 +153,69 @@ export function usePedidos() {
     await fetch();
   };
 
-  return { pedidos, loading, addPedido, updatePedido, fulfillPedido, deletePedido, refetch: fetch };
+  const cancelPedido = async (id: string, motivo: string) => {
+    if (!motivo?.trim()) throw new Error("Motivo do cancelamento é obrigatório");
+
+    const pedido = pedidos.find((p) => p.id === id);
+    if (!pedido) throw new Error("Pedido não encontrado");
+    if (pedido.cancelado) throw new Error("Pedido já cancelado");
+    if (pedido.status !== "atendido") throw new Error("Apenas pedidos atendidos podem ser cancelados aqui");
+
+    // 1) Restituir estoque
+    for (const item of (pedido.itens ?? [])) {
+      const { data: prod } = await supabase.from("produtos").select("estoque_kg").eq("id", item.produto_id).single();
+      if (prod) {
+        await supabase.from("produtos").update({
+          estoque_kg: +(Number(prod.estoque_kg) + Number(item.kg)).toFixed(3),
+        }).eq("id", item.produto_id);
+        await supabase.from("movimentacoes_estoque").insert({
+          produto_id: item.produto_id,
+          tipo: "outros" as const,
+          kg: -Number(item.kg),
+          observacao: `Estorno pedido cancelado - ${motivo}`,
+          peixaria_id: peixariaId,
+        });
+      }
+    }
+
+    // 2) Marcar entradas como canceladas
+    await supabase
+      .from("pagamentos_entrada")
+      .update({ cancelado: true, cancelado_at: new Date().toISOString() })
+      .eq("pedido_id", id);
+
+    // 3) Subtrair débito do cliente (se prazo, não pré-pago)
+    if (!pedido.prepaid && pedido.pagamento === "prazo" && pedido.cliente_id) {
+      const entradaPaga = Number(pedido.entrada ?? 0);
+      const debtoGerado = Number(pedido.valor_total) - entradaPaga;
+      const { data: cliente } = await supabase.from("clientes").select("debito").eq("id", pedido.cliente_id).single();
+      if (cliente) {
+        const novoDebito = Math.max(0, +(Number(cliente.debito) - debtoGerado).toFixed(2));
+        await supabase.from("clientes").update({ debito: novoDebito }).eq("id", pedido.cliente_id);
+      }
+    }
+
+    // 4) Marcar pedido como cancelado
+    const { data: { user } } = await supabase.auth.getUser();
+    const { error } = await supabase.from("pedidos").update({
+      cancelado: true,
+      cancelado_motivo: motivo.trim(),
+      cancelado_at: new Date().toISOString(),
+      cancelado_por: user?.id ?? null,
+    }).eq("id", id);
+    if (error) throw error;
+
+    logActivity({
+      action: "Pedido Cancelado",
+      entity: "Pedido",
+      entity_id: id.slice(0, 8),
+      amount: Number(pedido.valor_total),
+      description: `Pedido #${pedido.numero} cancelado - Motivo: ${motivo.trim()}`,
+      peixaria_id: peixariaId,
+    });
+
+    await fetch();
+  };
+
+  return { pedidos, loading, addPedido, updatePedido, fulfillPedido, deletePedido, cancelPedido, refetch: fetch };
 }

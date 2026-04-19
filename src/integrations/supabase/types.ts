@@ -403,6 +403,8 @@ export type Database = {
       }
       pagamentos_entrada: {
         Row: {
+          cancelado: boolean
+          cancelado_at: string | null
           cliente_id: string | null
           created_at: string
           id: string
@@ -416,6 +418,8 @@ export type Database = {
           venda_id: string | null
         }
         Insert: {
+          cancelado?: boolean
+          cancelado_at?: string | null
           cliente_id?: string | null
           created_at?: string
           id?: string
@@ -429,6 +433,8 @@ export type Database = {
           venda_id?: string | null
         }
         Update: {
+          cancelado?: boolean
+          cancelado_at?: string | null
           cliente_id?: string | null
           created_at?: string
           id?: string
@@ -568,6 +574,10 @@ export type Database = {
       }
       pedidos: {
         Row: {
+          cancelado: boolean
+          cancelado_at: string | null
+          cancelado_motivo: string | null
+          cancelado_por: string | null
           cliente_id: string
           created_at: string
           entrada: number | null
@@ -582,6 +592,10 @@ export type Database = {
           valor_total: number
         }
         Insert: {
+          cancelado?: boolean
+          cancelado_at?: string | null
+          cancelado_motivo?: string | null
+          cancelado_por?: string | null
           cliente_id: string
           created_at?: string
           entrada?: number | null
@@ -596,6 +610,10 @@ export type Database = {
           valor_total?: number
         }
         Update: {
+          cancelado?: boolean
+          cancelado_at?: string | null
+          cancelado_motivo?: string | null
+          cancelado_por?: string | null
           cliente_id?: string
           created_at?: string
           entrada?: number | null
@@ -723,6 +741,10 @@ export type Database = {
       }
       vendas: {
         Row: {
+          cancelado: boolean
+          cancelado_at: string | null
+          cancelado_motivo: string | null
+          cancelado_por: string | null
           cliente_id: string | null
           created_at: string
           entrada: number | null
@@ -736,6 +758,10 @@ export type Database = {
           vendedor_id: string | null
         }
         Insert: {
+          cancelado?: boolean
+          cancelado_at?: string | null
+          cancelado_motivo?: string | null
+          cancelado_por?: string | null
           cliente_id?: string | null
           created_at?: string
           entrada?: number | null
@@ -749,6 +775,10 @@ export type Database = {
           vendedor_id?: string | null
         }
         Update: {
+          cancelado?: boolean
+          cancelado_at?: string | null
+          cancelado_motivo?: string | null
+          cancelado_por?: string | null
           cliente_id?: string | null
           created_at?: string
           entrada?: number | null

@@ -2,7 +2,6 @@ import { useState, useMemo } from "react";
 import { usePedidos, type Pedido, type ItemPedido } from "@/hooks/usePedidos";
 import { useProdutos } from "@/hooks/useProdutos";
 import { useClientes } from "@/hooks/useClientes";
-import { useBilling } from "@/hooks/useBilling";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +11,10 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { SlideUpModal } from "@/components/SlideUpModal";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { FileText, Plus, Pencil, CheckCircle2, Trash2, MapPin, Calendar, MessageCircle, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import { CancelReasonModal } from "@/components/CancelReasonModal";
+import { useAuth } from "@/hooks/useAuth";
+import { useBilling } from "@/hooks/useBilling";
+import { FileText, Plus, Pencil, CheckCircle2, Trash2, MapPin, Calendar, MessageCircle, ChevronLeft, ChevronRight, Search, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -245,12 +247,13 @@ function MonthNavigator({ month, year, onPrev, onNext, searchValue, onSearchChan
 }
 
 // ─── Order Card ───
-function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete }: {
-  order: Pedido; isPendente: boolean; onEdit?: (o: Pedido) => void; onFulfill?: (o: Pedido) => void; onDelete?: (o: Pedido) => void;
+function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete, onCancel }: {
+  order: Pedido; isPendente: boolean; onEdit?: (o: Pedido) => void; onFulfill?: (o: Pedido) => void; onDelete?: (o: Pedido) => void; onCancel?: (o: Pedido) => void;
 }) {
   const { clientes } = useClientes();
   const { produtos } = useProdutos();
   const client = clientes.find((c) => c.id === order.cliente_id);
+  const isCancelled = !!order.cancelado;
 
   const canFulfill = (order.itens ?? []).every((item) => {
     const product = produtos.find((p) => p.id === item.produto_id);
@@ -258,11 +261,16 @@ function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete }: {
   });
 
   return (
-    <div className={cn("rounded-3xl bg-card p-4 shadow-sm border-l-4", isPendente ? "border-l-amber-400" : "border-l-fish-treated opacity-80")}>
+    <div className={cn(
+      "rounded-3xl bg-card p-4 shadow-sm border-l-4",
+      isCancelled ? "border-l-destructive opacity-70" : isPendente ? "border-l-amber-400" : "border-l-fish-treated opacity-80"
+    )}>
       <div className="flex items-start justify-between mb-1">
         <div className="flex items-center gap-2">
-          <h3 className="font-bold text-foreground text-base">{client?.nome || "—"}</h3>
-          {order.status === "atendido" ? (
+          <h3 className={cn("font-bold text-foreground text-base", isCancelled && "line-through")}>{client?.nome || "—"}</h3>
+          {isCancelled ? (
+            <Badge className="bg-destructive hover:bg-destructive text-destructive-foreground text-[10px] px-2 py-0.5 font-bold tracking-wide">CANCELADO</Badge>
+          ) : order.status === "atendido" ? (
             <Badge className="bg-primary hover:bg-primary text-primary-foreground text-[10px] px-2 py-0.5 font-bold tracking-wide">ATENDIDO</Badge>
           ) : order.prepaid ? (
             <Badge className="bg-fish-treated hover:bg-fish-treated text-white text-[10px] px-2 py-0.5 font-bold tracking-wide">PAGO</Badge>
@@ -272,7 +280,7 @@ function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete }: {
         </div>
         <span className="text-sm font-bold text-muted-foreground">#{String(order.numero || 0).padStart(3, "0")}</span>
         <div className="text-right">
-          <span className="text-lg font-bold text-foreground">{formatBRL(Number(order.valor_total))}</span>
+          <span className={cn("text-lg font-bold text-foreground", isCancelled && "line-through")}>{formatBRL(Number(order.valor_total))}</span>
           {!isPendente && <p className="text-[10px] text-muted-foreground">{order.pagamento === "prazo" ? "A Prazo" : "À Vista"}</p>}
           {isPendente && order.prepaid && order.prepaid_method && (
             <p className="text-[10px] text-fish-treated font-medium">via {PREPAID_METHODS.find(m => m.value === order.prepaid_method)?.label}</p>
@@ -310,7 +318,17 @@ function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete }: {
           );
         })}
       </div>
-      {isPendente && (
+      {isCancelled && order.cancelado_motivo && (
+        <div className="rounded-2xl bg-destructive/10 border border-destructive/20 p-2 text-xs text-foreground mb-2">
+          <span className="font-semibold">Motivo: </span>{order.cancelado_motivo}
+          {order.cancelado_at && (
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              em {new Date(order.cancelado_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+            </p>
+          )}
+        </div>
+      )}
+      {isPendente && !isCancelled && (
         <div className="flex gap-2">
           {onFulfill && (
             <Button size="sm" className={cn("flex-1 rounded-2xl", !canFulfill && "opacity-50")} disabled={!canFulfill} onClick={() => onFulfill(order)}>
@@ -325,12 +343,21 @@ function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete }: {
           )}
         </div>
       )}
+      {!isPendente && !isCancelled && onCancel && (
+        <Button variant="outline" size="sm" className="w-full rounded-2xl text-destructive border-destructive/40 hover:bg-destructive/10" onClick={() => onCancel(order)}>
+          <XCircle className="w-4 h-4" /> Cancelar Pedido
+        </Button>
+      )}
     </div>
   );
 }
 
 export function OrdersPage() {
-  const { pedidos, deletePedido, refetch: refetchPedidos } = usePedidos();
+  const { pedidos, deletePedido, cancelPedido, refetch: refetchPedidos } = usePedidos();
+  const { refetch: refetchProdutos } = useProdutos();
+  const { refetch: refetchBilling } = useBilling();
+  const { role } = useAuth();
+  const isAdmin = role === "administrador" || role === "root";
   const { toast } = useToast();
   const now = new Date();
   const [filterMonth, setFilterMonth] = useState(now.getMonth());
@@ -340,6 +367,7 @@ export function OrdersPage() {
   const [editOrder, setEditOrder] = useState<Pedido | undefined>();
   const [fulfillOrder, setFulfillOrder] = useState<Pedido | undefined>();
   const [deleteTarget, setDeleteTarget] = useState<Pedido | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<Pedido | null>(null);
 
   const prevMonth = () => { if (filterMonth === 0) { setFilterMonth(11); setFilterYear((y) => y - 1); } else setFilterMonth((m) => m - 1); };
   const nextMonth = () => { if (filterMonth === 11) { setFilterMonth(0); setFilterYear((y) => y + 1); } else setFilterMonth((m) => m + 1); };
@@ -353,7 +381,7 @@ export function OrdersPage() {
     });
   }, [pedidos, filterMonth, filterYear, search]);
 
-  const pendentes = filtered.filter((o) => o.status === "pendente");
+  const pendentes = filtered.filter((o) => o.status === "pendente" && !o.cancelado);
   const atendidos = filtered.filter((o) => o.status === "atendido");
 
   const handleDelete = async (order: Pedido) => {
@@ -364,6 +392,14 @@ export function OrdersPage() {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
     }
     setDeleteTarget(null);
+  };
+
+  const handleCancel = async (motivo: string) => {
+    if (!cancelTarget) return;
+    await cancelPedido(cancelTarget.id, motivo);
+    await Promise.all([refetchPedidos(), refetchProdutos(), refetchBilling()]);
+    toast({ title: "Pedido cancelado", description: "Estoque, entradas e débitos foram estornados." });
+    setCancelTarget(null);
   };
 
   return (
@@ -405,7 +441,9 @@ export function OrdersPage() {
             <div className="text-center py-12 text-muted-foreground"><FileText className="w-12 h-12 mx-auto mb-3 opacity-30" /><p className="text-sm">Nenhum pedido atendido</p></div>
           ) : (
             <div className="space-y-3">
-              {atendidos.map((o) => <OrderCard key={o.id} order={o} isPendente={false} />)}
+              {atendidos.map((o) => (
+                <OrderCard key={o.id} order={o} isPendente={false} onCancel={isAdmin && !o.cancelado ? (o) => setCancelTarget(o) : undefined} />
+              ))}
             </div>
           )}
         </TabsContent>
@@ -426,6 +464,15 @@ export function OrdersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {cancelTarget && (
+        <CancelReasonModal
+          open={!!cancelTarget}
+          onOpenChange={(o) => !o && setCancelTarget(null)}
+          title={`Cancelar pedido #${String(cancelTarget.numero || 0).padStart(3, "0")}`}
+          onConfirm={handleCancel}
+        />
+      )}
     </div>
   );
 }

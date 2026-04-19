@@ -331,18 +331,26 @@ function TabEntradas({ filterMonth, filterYear }: { filterMonth: number; filterY
       {sorted.map((p) => {
         const client = clientes.find((c) => c.id === p.cliente_id);
         const product = produtos.find((pr) => pr.id === p.produto_id);
+        const isCancelled = !!p.cancelado;
         return (
-          <div key={p.id} className="rounded-3xl bg-card p-4 shadow-sm border-l-4 border-l-fish-treated/50">
+          <div key={p.id} className={cn(
+            "rounded-3xl bg-card p-4 shadow-sm border-l-4",
+            isCancelled ? "border-l-destructive opacity-70" : "border-l-fish-treated/50"
+          )}>
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="font-semibold text-foreground text-sm">{client?.nome || "Venda Balcão"}</h3>
+                <h3 className={cn("font-semibold text-foreground text-sm", isCancelled && "line-through")}>{client?.nome || "Venda Balcão"}</h3>
                 <p className="text-[10px] text-muted-foreground">{originLabel(p.origem)}</p>
                 {product && <p className="text-[10px] text-muted-foreground">{product.nome} ({product.sku}){p.kg ? ` — ${Number(p.kg)}kg` : ""}</p>}
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5"><Calendar className="w-3 h-3" /><span>{new Date(p.created_at).toLocaleDateString("pt-BR")}</span></div>
               </div>
               <div className="text-right">
-                <span className="text-base font-bold text-fish-treated">+ {formatBRL(Number(p.valor))}</span>
-                <Badge className={cn("ml-2 text-[10px]", p.tipo === "total" ? "bg-primary" : "bg-amber-500")}>{p.tipo === "total" ? "TOTAL" : "PARCIAL"}</Badge>
+                <span className={cn("text-base font-bold", isCancelled ? "text-muted-foreground line-through" : "text-fish-treated")}>+ {formatBRL(Number(p.valor))}</span>
+                {isCancelled ? (
+                  <Badge className="ml-2 text-[10px] bg-destructive hover:bg-destructive text-destructive-foreground">CANCELADO</Badge>
+                ) : (
+                  <Badge className={cn("ml-2 text-[10px]", p.tipo === "total" ? "bg-primary" : "bg-amber-500")}>{p.tipo === "total" ? "TOTAL" : "PARCIAL"}</Badge>
+                )}
               </div>
             </div>
           </div>
@@ -377,7 +385,7 @@ export function FaturamentoPage() {
     .reduce((sum, p) => sum + Number(p.valor), 0), [pagamentosSaida, filterMonth, filterYear]);
 
   const totalEntradas = useMemo(() => pagamentosEntrada
-    .filter((p) => inMonth(p.created_at))
+    .filter((p) => inMonth(p.created_at) && !p.cancelado)
     .reduce((sum, p) => sum + Number(p.valor), 0), [pagamentosEntrada, filterMonth, filterYear]);
 
   const cardsLoading = loading || loadingClientes;
