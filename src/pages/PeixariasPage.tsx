@@ -239,6 +239,9 @@ export function PeixariasPage() {
                       <p className="text-xs text-muted-foreground">
                         Pgto dia {p.dia_pagamento} • Mensalidade: R$ {(p.mensalidade ?? 0).toFixed(2)}
                       </p>
+                      {vendedor && (
+                        <p className="text-xs text-primary font-medium">Venda: {vendedor.name}</p>
+                      )}
                       <p className="text-xs text-muted-foreground">{p.ativo ? "Ativa" : "Inativa"}</p>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
