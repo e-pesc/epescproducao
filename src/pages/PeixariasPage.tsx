@@ -356,9 +356,16 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
       setCidade(editPeixaria?.cidade ?? "");
       const dia = String(editPeixaria?.dia_pagamento ?? 10);
       setDiaPagamento(PAYMENT_DAYS.includes(dia as typeof PAYMENT_DAYS[number]) ? dia : "10");
-      setMensalidade(String(editPeixaria?.mensalidade ?? 0));
+      const m = editPeixaria?.mensalidade ?? MENSALIDADE_BASE;
+      setMensalidade(String(m));
+      setVendaNegociada(!!editPeixaria?.vendedor_root_id || (m > MENSALIDADE_BASE));
+      setVendedorRootId(editPeixaria?.vendedor_root_id ?? "");
       setEmail("");
       setPassword("");
+
+      // Carrega lista de Roots para o seletor
+      supabase.from("app_users").select("*").eq("role", "root").eq("active", true)
+        .then(({ data }) => setRootUsersList((data as AppUser[] | null) ?? []));
       setAdminEmail(null);
       setAdminUserId(null);
       setResetPassword("");
