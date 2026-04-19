@@ -9,9 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { CancelReasonModal } from "@/components/CancelReasonModal";
-import { ChevronLeft, ChevronRight, Calendar, History, Search, XCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, History, Search, XCircle, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/format";
+import { openWhatsappReceipt } from "@/lib/whatsappReceipt";
 
 const MONTH_NAMES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
@@ -141,11 +142,41 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
                         )}
                       </div>
                     )}
-                    {!isCancelled && isAdmin && (
-                      <Button variant="outline" size="sm" className="w-full rounded-2xl mt-2 text-destructive border-destructive/40 hover:bg-destructive/10" onClick={() => setCancelTarget(d)}>
-                        <XCircle className="w-4 h-4" /> Cancelar Compra
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={isCancelled || !f?.whatsapp}
+                        className={cn(
+                          "flex-1 rounded-2xl gap-1.5",
+                          isCancelled || !f?.whatsapp
+                            ? "opacity-50"
+                            : "border-[hsl(142,70%,45%)]/40 text-[hsl(142,70%,38%)] hover:bg-[hsl(142,70%,45%)]/10"
+                        )}
+                        onClick={() => {
+                          openWhatsappReceipt(f?.whatsapp, {
+                            tipo: "Compra",
+                            data: d.created_at,
+                            contraparte: f?.nome ?? "Fornecedor",
+                            itens: [{
+                              nome: p?.nome ?? "Produto",
+                              sku: p?.sku,
+                              kg: Number(d.kg),
+                              preco_kg: Number(d.preco_kg),
+                            }],
+                            valor_total: Number(d.valor_total),
+                            valor_pago: Number(d.valor_pago ?? 0),
+                          });
+                        }}
+                      >
+                        <MessageCircle className="w-4 h-4" /> WhatsApp
                       </Button>
-                    )}
+                      {!isCancelled && isAdmin && (
+                        <Button variant="outline" size="sm" className="flex-1 rounded-2xl text-destructive border-destructive/40 hover:bg-destructive/10" onClick={() => setCancelTarget(d)}>
+                          <XCircle className="w-4 h-4" /> Cancelar
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
