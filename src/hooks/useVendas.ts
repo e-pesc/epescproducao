@@ -33,8 +33,17 @@ export function useVendas() {
   const { peixariaId } = useAuth();
 
   const fetch = useCallback(async () => {
-    const { data } = await supabase.from("vendas").select("*").order("created_at", { ascending: false });
-    setVendas(data ?? []);
+    const { data: vendasData } = await supabase.from("vendas").select("*").order("created_at", { ascending: false });
+    if (!vendasData) { setVendas([]); setLoading(false); return; }
+    const ids = vendasData.map((v) => v.id);
+    const { data: itensData } = ids.length
+      ? await supabase.from("itens_venda").select("*").in("venda_id", ids)
+      : { data: [] as any[] };
+    const merged = vendasData.map((v) => ({
+      ...v,
+      itens: (itensData ?? []).filter((i: any) => i.venda_id === v.id),
+    }));
+    setVendas(merged as Venda[]);
     setLoading(false);
   }, []);
 
