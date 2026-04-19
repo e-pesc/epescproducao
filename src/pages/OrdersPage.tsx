@@ -2,7 +2,6 @@ import { useState, useMemo } from "react";
 import { usePedidos, type Pedido, type ItemPedido } from "@/hooks/usePedidos";
 import { useProdutos } from "@/hooks/useProdutos";
 import { useClientes } from "@/hooks/useClientes";
-import { useBilling } from "@/hooks/useBilling";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
