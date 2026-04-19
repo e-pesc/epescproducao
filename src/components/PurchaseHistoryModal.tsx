@@ -33,7 +33,7 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
   const [month, setMonth] = useState(now.getMonth());
   const [year, setYear] = useState(now.getFullYear());
   const [search, setSearch] = useState("");
-  const [cancelTarget, setCancelTarget] = useState<DividaCompra | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<DividaCompra[] | null>(null);
 
   useEffect(() => {
     if (open) refetch();
@@ -42,22 +42,43 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
   const prevMonth = () => { if (month === 0) { setMonth(11); setYear((y) => y - 1); } else setMonth((m) => m - 1); };
   const nextMonth = () => { if (month === 11) { setMonth(0); setYear((y) => y + 1); } else setMonth((m) => m + 1); };
 
-  const filtered = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    return dividasCompra.filter((d) => {
+  // Agrupa itens da mesma compra: mesmo fornecedor + mesmo created_at (truncado em segundos)
+  const grouped = useMemo(() => {
+    const map = new Map<string, DividaCompra[]>();
+    for (const d of dividasCompra) {
       const dt = new Date(d.created_at);
-      if (dt.getMonth() !== month || dt.getFullYear() !== year) return false;
-      if (!term) return true;
-      const f = fornecedores.find((x) => x.id === d.fornecedor_id);
-      const p = produtos.find((x) => x.id === d.produto_id);
-      return (f?.nome ?? "").toLowerCase().includes(term) || (p?.nome ?? "").toLowerCase().includes(term);
+      if (dt.getMonth() !== month || dt.getFullYear() !== year) continue;
+      const sec = Math.floor(dt.getTime() / 1000);
+      const key = `${d.fornecedor_id ?? "_"}|${sec}`;
+      const arr = map.get(key) ?? [];
+      arr.push(d);
+      map.set(key, arr);
+    }
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b[0].created_at).getTime() - new Date(a[0].created_at).getTime()
+    );
+  }, [dividasCompra, month, year]);
+
+  const filteredGroups = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return grouped;
+    return grouped.filter((group) => {
+      const f = fornecedores.find((x) => x.id === group[0].fornecedor_id);
+      if ((f?.nome ?? "").toLowerCase().includes(term)) return true;
+      return group.some((d) => {
+        const p = produtos.find((x) => x.id === d.produto_id);
+        return (p?.nome ?? "").toLowerCase().includes(term);
+      });
     });
-  }, [dividasCompra, month, year, search, fornecedores, produtos]);
+  }, [grouped, search, fornecedores, produtos]);
 
   const handleCancel = async (motivo: string) => {
-    if (!cancelTarget) return;
+    if (!cancelTarget || cancelTarget.length === 0) return;
     try {
-      await cancelDivida(cancelTarget.id, motivo);
+      // Cancela todos os itens do grupo (mesma compra)
+      for (const d of cancelTarget) {
+        if (!d.cancelado) await cancelDivida(d.id, motivo);
+      }
       await Promise.all([refetch(), refetchProdutos()]);
       toast({ title: "Compra cancelada", description: "Estoque e pagamentos foram estornados." });
       setCancelTarget(null);
@@ -82,62 +103,79 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
             </div>
           </div>
 
-          {filtered.length === 0 ? (
+          {filteredGroups.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <History className="w-12 h-12 mx-auto mb-3 opacity-30" />
               <p className="text-sm">Nenhuma compra neste período</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {filtered.map((d) => {
-                const f = fornecedores.find((x) => x.id === d.fornecedor_id);
-                const p = produtos.find((x) => x.id === d.produto_id);
-                const isCancelled = !!d.cancelado;
+              {filteredGroups.map((group) => {
+                const first = group[0];
+                const f = fornecedores.find((x) => x.id === first.fornecedor_id);
+                const allCancelled = group.every((d) => d.cancelado);
+                const totalCompra = group.reduce((acc, d) => acc + Number(d.valor_total), 0);
+                const totalPago = group.reduce((acc, d) => acc + Number(d.valor_pago ?? 0), 0);
+                const allQuitado = group.every((d) => d.quitado || d.cancelado);
+                const motivo = group.find((d) => d.cancelado_motivo)?.cancelado_motivo;
+                const canceladoAt = group.find((d) => d.cancelado_at)?.cancelado_at;
                 return (
                   <div
-                    key={d.id}
+                    key={`${first.fornecedor_id}-${first.created_at}`}
                     className={cn(
                       "rounded-3xl bg-card p-4 shadow-sm border-l-4",
-                      isCancelled ? "border-l-destructive opacity-70" : "border-l-fish-whole"
+                      allCancelled ? "border-l-destructive opacity-70" : "border-l-fish-whole"
                     )}
                   >
                     <div className="flex items-start justify-between mb-1">
                       <div className="flex items-center gap-2 min-w-0">
-                        <h3 className={cn("font-bold text-foreground text-sm truncate", isCancelled && "line-through")}>
+                        <h3 className={cn("font-bold text-foreground text-sm truncate", allCancelled && "line-through")}>
                           {f?.nome ?? "Fornecedor"}
                         </h3>
-                        {isCancelled ? (
+                        {allCancelled ? (
                           <Badge className="bg-destructive hover:bg-destructive text-destructive-foreground text-[10px] px-2 py-0.5 font-bold">CANCELADA</Badge>
                         ) : (
                           <Badge className={cn(
                             "text-[10px] px-2 py-0.5 font-bold",
-                            d.quitado ? "bg-fish-treated hover:bg-fish-treated text-white" : "bg-amber-500 hover:bg-amber-500 text-white"
+                            allQuitado ? "bg-fish-treated hover:bg-fish-treated text-white" : "bg-amber-500 hover:bg-amber-500 text-white"
                           )}>
-                            {d.quitado ? "QUITADA" : "EM ABERTO"}
+                            {allQuitado ? "QUITADA" : "EM ABERTO"}
                           </Badge>
                         )}
+                        {group.length > 1 && (
+                          <Badge variant="outline" className="text-[10px] px-2 py-0.5">{group.length} itens</Badge>
+                        )}
                       </div>
-                      <span className={cn("text-base font-bold text-foreground shrink-0 ml-2", isCancelled && "line-through")}>
-                        {formatBRL(Number(d.valor_total))}
+                      <span className={cn("text-base font-bold text-foreground shrink-0 ml-2", allCancelled && "line-through")}>
+                        {formatBRL(totalCompra)}
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-2">
                       <Calendar className="w-3 h-3" />
-                      <span>{new Date(d.created_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>
+                      <span>{new Date(first.created_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span>
                     </div>
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="text-muted-foreground truncate">{p?.nome ?? "—"} ({p?.sku ?? "—"})</span>
-                      <span className="text-foreground font-medium shrink-0 ml-2">{Number(d.kg)}kg × {formatBRL(Number(d.preco_kg))}</span>
+                    <div className="space-y-1 mb-1">
+                      {group.map((d) => {
+                        const p = produtos.find((x) => x.id === d.produto_id);
+                        return (
+                          <div key={d.id} className="flex items-center justify-between text-xs">
+                            <span className="text-muted-foreground truncate">• {p?.nome ?? "—"} ({p?.sku ?? "—"})</span>
+                            <span className="text-foreground font-medium shrink-0 ml-2">
+                              {Number(d.kg)}kg × {formatBRL(Number(d.preco_kg))} = {formatBRL(Number(d.valor_total))}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
-                    {!isCancelled && Number(d.valor_pago) > 0 && (
-                      <p className="text-[11px] text-muted-foreground">Pago: {formatBRL(Number(d.valor_pago))}</p>
+                    {!allCancelled && totalPago > 0 && (
+                      <p className="text-[11px] text-muted-foreground">Pago: {formatBRL(totalPago)}</p>
                     )}
-                    {isCancelled && d.cancelado_motivo && (
+                    {allCancelled && motivo && (
                       <div className="rounded-2xl bg-destructive/10 border border-destructive/20 p-2 text-xs text-foreground mt-2">
-                        <span className="font-semibold">Motivo: </span>{d.cancelado_motivo}
-                        {d.cancelado_at && (
+                        <span className="font-semibold">Motivo: </span>{motivo}
+                        {canceladoAt && (
                           <p className="text-[10px] text-muted-foreground mt-0.5">
-                            em {new Date(d.cancelado_at).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
+                            em {new Date(canceladoAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
                           </p>
                         )}
                       </div>
@@ -146,10 +184,10 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={isCancelled}
+                        disabled={allCancelled}
                         className={cn(
                           "flex-1 rounded-2xl gap-1.5",
-                          isCancelled
+                          allCancelled
                             ? "opacity-50"
                             : "border-[hsl(142,70%,45%)]/40 text-[hsl(142,70%,38%)] hover:bg-[hsl(142,70%,45%)]/10"
                         )}
@@ -160,23 +198,26 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
                           }
                           openWhatsappReceipt(f?.whatsapp, {
                             tipo: "Compra",
-                            data: d.created_at,
+                            data: first.created_at,
                             contraparte: f?.nome ?? "Fornecedor",
-                            itens: [{
-                              nome: p?.nome ?? "Produto",
-                              sku: p?.sku,
-                              kg: Number(d.kg),
-                              preco_kg: Number(d.preco_kg),
-                            }],
-                            valor_total: Number(d.valor_total),
-                            valor_pago: Number(d.valor_pago ?? 0),
+                            itens: group.map((d) => {
+                              const p = produtos.find((x) => x.id === d.produto_id);
+                              return {
+                                nome: p?.nome ?? "Produto",
+                                sku: p?.sku,
+                                kg: Number(d.kg),
+                                preco_kg: Number(d.preco_kg),
+                              };
+                            }),
+                            valor_total: totalCompra,
+                            valor_pago: totalPago,
                           });
                         }}
                       >
                         <MessageCircle className="w-4 h-4" /> WhatsApp
                       </Button>
-                      {!isCancelled && isAdmin && (
-                        <Button variant="outline" size="sm" className="flex-1 rounded-2xl text-destructive border-destructive/40 hover:bg-destructive/10" onClick={() => setCancelTarget(d)}>
+                      {!allCancelled && isAdmin && (
+                        <Button variant="outline" size="sm" className="flex-1 rounded-2xl text-destructive border-destructive/40 hover:bg-destructive/10" onClick={() => setCancelTarget(group)}>
                           <XCircle className="w-4 h-4" /> Cancelar
                         </Button>
                       )}
@@ -193,7 +234,7 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
         <CancelReasonModal
           open={!!cancelTarget}
           onOpenChange={(o) => !o && setCancelTarget(null)}
-          title={`Cancelar compra — ${formatBRL(Number(cancelTarget.valor_total))}`}
+          title={`Cancelar compra — ${formatBRL(cancelTarget.reduce((acc, d) => acc + Number(d.valor_total), 0))}`}
           onConfirm={handleCancel}
         />
       )}
