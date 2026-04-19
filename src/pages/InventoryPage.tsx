@@ -8,7 +8,8 @@ import { SlideUpModal } from "@/components/SlideUpModal";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/SearchableSelect";
-import { ArrowRightLeft, TrendingDown, Package, ShoppingCart, DollarSign, Search } from "lucide-react";
+import { ArrowRightLeft, TrendingDown, Package, ShoppingCart, DollarSign, Search, History } from "lucide-react";
+import { PurchaseHistoryModal } from "@/components/PurchaseHistoryModal";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { formatBRL } from "@/lib/format";
@@ -132,6 +133,8 @@ export function InventoryPage() {
   const [buyPayment, setBuyPayment] = useState<"avista" | "prazo">("avista");
   const [buyEntrada, setBuyEntrada] = useState("");
   const [search, setSearch] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const activeProducts = produtos.filter((p) => p.ativo);
   const activeSuppliers = fornecedores.filter((s) => s.ativo);
@@ -148,10 +151,12 @@ export function InventoryPage() {
   }, [buyKg, buyPriceKg]);
 
   const handleBuy = async () => {
+    if (submitting) return;
     const kg = parseFloat(buyKg);
     const priceKg = parseFloat(buyPriceKg);
     if (!buyProductId || !buySupplierId || !kg || kg <= 0 || !priceKg || priceKg <= 0) return;
 
+    setSubmitting(true);
     try {
       await updateEstoque(buyProductId, kg);
       await updateProduto(buyProductId, { preco_compra: priceKg });
@@ -186,6 +191,8 @@ export function InventoryPage() {
       setBuyProductId(""); setBuySupplierId(""); setBuyKg(""); setBuyPriceKg(""); setBuyPayment("avista"); setBuyEntrada(""); setBuyOpen(false);
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -196,9 +203,14 @@ export function InventoryPage() {
           <Package className="w-6 h-6 text-secondary" />
           <h1 className="text-xl font-bold text-foreground">Estoque</h1>
         </div>
-        <Button variant="default" size="sm" className="rounded-2xl" onClick={() => setBuyOpen(true)}>
-          <ShoppingCart className="w-4 h-4" /> Comprar
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="rounded-2xl" onClick={() => setHistoryOpen(true)}>
+            <History className="w-4 h-4" /> Histórico
+          </Button>
+          <Button variant="default" size="sm" className="rounded-2xl" onClick={() => setBuyOpen(true)}>
+            <ShoppingCart className="w-4 h-4" /> Comprar
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -257,9 +269,19 @@ export function InventoryPage() {
               {buyEntrada && buyTotal > 0 && <p className="text-xs text-muted-foreground mt-1">Restante: {formatBRL(buyTotal - (parseFloat(buyEntrada) || 0))}</p>}
             </div>
           )}
-          <Button variant="default" size="lg" className="w-full" onClick={handleBuy}><ShoppingCart className="w-4 h-4" /> Confirmar Compra</Button>
+          <Button
+            variant="default"
+            size="lg"
+            className={cn("w-full transition-colors", submitting && "bg-muted text-muted-foreground hover:bg-muted cursor-not-allowed")}
+            onClick={handleBuy}
+            disabled={submitting}
+          >
+            <ShoppingCart className="w-4 h-4" /> {submitting ? "Processando..." : "Confirmar Compra"}
+          </Button>
         </div>
       </SlideUpModal>
+
+      <PurchaseHistoryModal open={historyOpen} onOpenChange={setHistoryOpen} />
     </div>
   );
 }
