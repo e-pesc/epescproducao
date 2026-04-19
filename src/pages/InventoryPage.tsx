@@ -299,9 +299,74 @@ export function InventoryPage() {
       <SlideUpModal open={buyOpen} onOpenChange={setBuyOpen} title="Comprar Peixe">
         <div className="space-y-4 mt-2">
           <div><Label>Fornecedor</Label><SearchableSelect value={buySupplierId} onValueChange={setBuySupplierId} placeholder="Selecione o fornecedor" options={activeSuppliers.map((s) => ({ value: s.id, label: `${s.nome} — ${s.cidade}` }))} /></div>
-          <div><Label>Produto</Label><SearchableSelect value={buyProductId} onValueChange={setBuyProductId} placeholder="Selecione o peixe" options={activeProducts.map((p) => ({ value: p.id, label: `${p.nome} (${p.sku}) — ${p.tipo === "inteiro" ? "Inteiro" : "Tratado"}` }))} /></div>
-          <div><Label>Peso (KG)</Label><Input type="number" step="0.1" min="0" value={buyKg} onChange={(e) => setBuyKg(e.target.value)} placeholder="Ex: 10.0" className="rounded-2xl h-12 text-lg" /></div>
-          <div><Label>Valor do KG (R$)</Label><Input type="number" step="0.01" min="0" value={buyPriceKg} onChange={(e) => setBuyPriceKg(e.target.value)} placeholder="Ex: 12.50" className="rounded-2xl h-12 text-lg" /></div>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label>Itens da Compra</Label>
+              <Button type="button" variant="outline" size="sm" onClick={addItem}>
+                <Plus className="w-4 h-4" /> Adicionar item
+              </Button>
+            </div>
+            {buyItems.map((item, idx) => {
+              const subtotal = itemTotal(item);
+              return (
+                <div key={idx} className="rounded-2xl border border-border bg-muted/30 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-muted-foreground">Item {idx + 1}</span>
+                    {buyItems.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeItem(idx)}
+                        className="text-destructive hover:opacity-80"
+                        aria-label="Remover item"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  <SearchableSelect
+                    value={item.produto_id}
+                    onValueChange={(v) => updateItem(idx, { produto_id: v })}
+                    placeholder="Selecione o peixe"
+                    options={activeProducts.map((p) => ({
+                      value: p.id,
+                      label: `${p.nome} (${p.sku}) — ${p.tipo === "inteiro" ? "Inteiro" : "Tratado"}`,
+                    }))}
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-xs">Peso (KG)</Label>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        value={item.kg}
+                        onChange={(e) => updateItem(idx, { kg: e.target.value })}
+                        placeholder="10.0"
+                        className="rounded-2xl h-11"
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">Valor KG (R$)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={item.preco_kg}
+                        onChange={(e) => updateItem(idx, { preco_kg: e.target.value })}
+                        placeholder="12.50"
+                        className="rounded-2xl h-11"
+                      />
+                    </div>
+                  </div>
+                  {subtotal > 0 && (
+                    <p className="text-xs text-right text-muted-foreground">
+                      Subtotal: <span className="font-semibold text-foreground">{formatBRL(subtotal)}</span>
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
           <div className="rounded-2xl bg-muted p-4 text-center">
             <p className="text-xs text-muted-foreground uppercase">Montante Total</p>
             <p className="text-3xl font-bold text-foreground">{formatBRL(buyTotal)}</p>
