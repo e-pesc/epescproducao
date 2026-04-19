@@ -549,7 +549,14 @@ function TabEntradas({ filterMonth, filterYear }: { filterMonth: number; filterY
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), [pagamentosEntrada, filterMonth, filterYear]);
 
   const originLabel = (origin: string) => {
+    if (origin?.startsWith("receita:")) return "Receita Avulsa";
+    if (origin?.startsWith("receita_pendente:")) return "Receita Avulsa";
     switch (origin) { case "venda": return "Venda Direta"; case "pedido": return "Pedido Atendido"; case "recebimento": return "Recebimento de Dívida"; default: return origin; }
+  };
+  const receitaDesc = (origin: string) => {
+    if (origin?.startsWith("receita:")) return origin.slice("receita:".length);
+    if (origin?.startsWith("receita_pendente:")) return origin.slice("receita_pendente:".length);
+    return null;
   };
 
   if (loading) return <ListSkeleton />;
@@ -560,6 +567,7 @@ function TabEntradas({ filterMonth, filterYear }: { filterMonth: number; filterY
         const client = clientes.find((c) => c.id === p.cliente_id);
         const product = produtos.find((pr) => pr.id === p.produto_id);
         const isCancelled = !!p.cancelado;
+        const desc = receitaDesc(p.origem);
         return (
           <div key={p.id} className={cn(
             "rounded-3xl bg-card p-4 shadow-sm border-l-4",
@@ -567,7 +575,7 @@ function TabEntradas({ filterMonth, filterYear }: { filterMonth: number; filterY
           )}>
             <div className="flex items-start justify-between">
               <div>
-                <h3 className={cn("font-semibold text-foreground text-sm", isCancelled && "line-through")}>{client?.nome || "Venda Balcão"}</h3>
+                <h3 className={cn("font-semibold text-foreground text-sm", isCancelled && "line-through")}>{desc || client?.nome || "Venda Balcão"}</h3>
                 <p className="text-[10px] text-muted-foreground">{originLabel(p.origem)}</p>
                 {product && <p className="text-[10px] text-muted-foreground">{product.nome} ({product.sku}){p.kg ? ` — ${Number(p.kg)}kg` : ""}</p>}
                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5"><Calendar className="w-3 h-3" /><span>{new Date(p.created_at).toLocaleDateString("pt-BR")}</span></div>
