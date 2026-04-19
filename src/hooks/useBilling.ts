@@ -13,6 +13,10 @@ export interface DividaCompra {
   valor_pago: number;
   quitado: boolean;
   created_at: string;
+  cancelado?: boolean;
+  cancelado_motivo?: string | null;
+  cancelado_at?: string | null;
+  cancelado_por?: string | null;
 }
 
 export interface PagamentoSaida {
@@ -22,6 +26,8 @@ export interface PagamentoSaida {
   valor: number;
   tipo: string;
   created_at: string;
+  cancelado?: boolean;
+  cancelado_at?: string | null;
 }
 
 export interface PagamentoEntrada {
@@ -180,9 +186,56 @@ export function useBilling() {
     await invalidateAll();
   };
 
+  const cancelDivida = async (dividaId: string, motivo: string) => {
+    const { data: divida } = await supabase.from("dividas_compra").select("*").eq("id", dividaId).single();
+    if (!divida) throw new Error("Compra não encontrada");
+    if (divida.cancelado) throw new Error("Compra já está cancelada");
+
+    const { data: { user } } = await supabase.auth.getUser();
+    const now = new Date().toISOString();
+
+    // 1) Restituir estoque (subtrair os kg que foram comprados) + log de movimentação
+    const { data: produto } = await supabase.from("produtos").select("estoque_kg, nome").eq("id", divida.produto_id).single();
+    if (produto) {
+      const novoEstoque = +(Number(produto.estoque_kg) - Number(divida.kg)).toFixed(3);
+      if (novoEstoque < 0) throw new Error(`Estoque insuficiente para estornar (disponível: ${produto.estoque_kg}kg)`);
+      await supabase.from("produtos").update({ estoque_kg: novoEstoque }).eq("id", divida.produto_id);
+      await supabase.from("movimentacoes_estoque").insert({
+        produto_id: divida.produto_id,
+        tipo: "outros",
+        kg: Number(divida.kg),
+        observacao: `Estorno por cancelamento de compra — ${motivo}`,
+        peixaria_id: peixariaId,
+      });
+    }
+
+    // 2) Marcar pagamentos de saída relacionados como cancelados
+    await supabase.from("pagamentos_saida").update({ cancelado: true, cancelado_at: now }).eq("divida_id", dividaId);
+
+    // 3) Marcar a dívida como cancelada
+    await supabase.from("dividas_compra").update({
+      cancelado: true,
+      cancelado_motivo: motivo,
+      cancelado_at: now,
+      cancelado_por: user?.id ?? null,
+    }).eq("id", dividaId);
+
+    logActivity({
+      action: "Compra Cancelada",
+      entity: "Compra",
+      entity_id: dividaId.slice(0, 8),
+      amount: Number(divida.valor_total),
+      description: `Cancelamento de compra de ${divida.kg}kg de ${produto?.nome ?? "—"} — Motivo: ${motivo}`,
+      peixaria_id: peixariaId,
+    });
+
+    await invalidateAll();
+    await queryClient.invalidateQueries({ queryKey: ["produtos"] });
+  };
+
   return {
     dividasCompra, pagamentosSaida, pagamentosEntrada, loading,
-    addDividaCompra, payDivida, addPagamentoEntrada, addPagamentoSaida, receiveFromClient,
+    addDividaCompra, payDivida, addPagamentoEntrada, addPagamentoSaida, receiveFromClient, cancelDivida,
     refetch: invalidateAll,
   };
 }
