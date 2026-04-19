@@ -1,17 +1,21 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SlideUpModal } from "@/components/SlideUpModal";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Power, Store, Search, CheckCircle2, Clock, MessageCircle } from "lucide-react";
+import { Plus, Pencil, Trash2, Power, Store, Search, CheckCircle2, Clock, MessageCircle, Users, KeyRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { SettingsMenu } from "@/components/SettingsMenu";
+import type { Tables } from "@/integrations/supabase/types";
 
 interface Peixaria {
   id: string;
@@ -34,6 +38,10 @@ interface PagamentoMensalidade {
   confirmado: boolean;
   confirmado_at: string | null;
 }
+
+type AppUser = Tables<"app_users">;
+
+const PAYMENT_DAYS = ["5", "10", "15"] as const;
 
 function formatCpfCnpj(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 14);
@@ -84,24 +92,14 @@ export function PeixariasPage() {
 
   useEffect(() => { fetchAll(); }, []);
 
-  const isPago = (peixariaId: string) => {
-    return pagamentos.some(p => p.peixaria_id === peixariaId && p.confirmado);
-  };
+  const isPago = (peixariaId: string) => pagamentos.some(p => p.peixaria_id === peixariaId && p.confirmado);
 
   const handleConfirmPayment = async (p: Peixaria) => {
     const existing = pagamentos.find(pg => pg.peixaria_id === p.id);
     if (existing) {
-      await supabase.from("pagamentos_mensalidade").update({
-        confirmado: true,
-        confirmado_at: new Date().toISOString(),
-      }).eq("id", existing.id);
+      await supabase.from("pagamentos_mensalidade").update({ confirmado: true, confirmado_at: new Date().toISOString() }).eq("id", existing.id);
     } else {
-      await supabase.from("pagamentos_mensalidade").insert({
-        peixaria_id: p.id,
-        mes_referencia: mesAtual,
-        confirmado: true,
-        confirmado_at: new Date().toISOString(),
-      });
+      await supabase.from("pagamentos_mensalidade").insert({ peixaria_id: p.id, mes_referencia: mesAtual, confirmado: true, confirmado_at: new Date().toISOString() });
     }
     toast({ title: "Pagamento confirmado!" });
     setConfirmTarget(null);
@@ -131,87 +129,98 @@ export function PeixariasPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Store className="w-6 h-6 text-secondary" />
-          <h1 className="text-xl font-bold text-foreground">Peixarias</h1>
+          <h1 className="text-xl font-bold text-foreground">Painel Root</h1>
         </div>
-        <div className="flex items-center gap-2">
-          <Button size="icon" className="rounded-full" onClick={() => { setEditPeixaria(undefined); setModalOpen(true); }}>
-            <Plus className="w-5 h-5" />
-          </Button>
-          <SettingsMenu />
-        </div>
+        <SettingsMenu />
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input type="text" placeholder="Buscar peixaria..." value={search} onChange={(e) => setSearch(e.target.value)} className="rounded-2xl h-10 pl-9 text-sm" />
-      </div>
+      <Tabs defaultValue="peixarias" className="w-full">
+        <TabsList className="w-full rounded-2xl grid grid-cols-2">
+          <TabsTrigger value="peixarias" className="rounded-xl text-sm gap-1.5"><Store className="w-4 h-4" /> Peixarias</TabsTrigger>
+          <TabsTrigger value="roots" className="rounded-xl text-sm gap-1.5"><Users className="w-4 h-4" /> Usuários Root</TabsTrigger>
+        </TabsList>
 
-      <p className="text-xs text-muted-foreground text-center">Referência: {formatMonthLabel(mesAtual)}</p>
-
-      <div className="space-y-2">
-        {filtered.map((p) => {
-          const pago = isPago(p.id);
-          return (
-            <div key={p.id} className={cn("rounded-3xl bg-card p-4 shadow-sm", !p.ativo && "opacity-50")}>
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-foreground truncate">{p.razao_social}</p>
-                  <p className="text-xs text-muted-foreground">{p.proprietario} • {p.cidade}</p>
-                  <p className="text-xs text-muted-foreground">{p.cpf_cnpj || "Sem documento"}</p>
-                  {p.whatsapp && (
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <MessageCircle className="w-3 h-3 text-muted-foreground" />
-                      <span className="text-xs text-muted-foreground">{p.whatsapp}</span>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); window.open(`https://wa.me/55${p.whatsapp.replace(/\D/g, "")}`, '_blank'); }}
-                        className="ml-1 inline-flex items-center justify-center w-6 h-6 rounded-full bg-[hsl(142,70%,45%)] hover:bg-[hsl(142,70%,38%)] transition-colors"
-                      >
-                        <MessageCircle className="w-3 h-3 text-white" />
-                      </button>
-                    </div>
-                  )}
-                  <p className="text-xs text-muted-foreground">
-                    Pgto dia {p.dia_pagamento} • Mensalidade: R$ {(p.mensalidade ?? 0).toFixed(2)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{p.ativo ? "Ativa" : "Inativa"}</p>
-                </div>
-                <div className="flex flex-col items-end gap-1 shrink-0">
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => { setEditPeixaria(p); setModalOpen(true); }}>
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleToggleActive(p)}>
-                      <Power className={cn("w-4 h-4", p.ativo ? "text-fish-treated" : "text-muted-foreground")} />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setDeleteTarget(p)}>
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className={cn(
-                      "text-xs gap-1 rounded-full px-3",
-                      pago
-                        ? "text-fish-treated bg-fish-treated/10"
-                        : "text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20"
-                    )}
-                    onClick={() => !pago && setConfirmTarget(p)}
-                    disabled={pago}
-                  >
-                    {pago ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
-                    {pago ? "Pago" : "Pendente"}
-                  </Button>
-                </div>
-              </div>
+        <TabsContent value="peixarias" className="space-y-4 mt-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input type="text" placeholder="Buscar peixaria..." value={search} onChange={(e) => setSearch(e.target.value)} className="rounded-2xl h-10 pl-9 text-sm" />
             </div>
-          );
-        })}
-        {filtered.length === 0 && (
-          <p className="text-center text-sm text-muted-foreground py-8">Nenhuma peixaria cadastrada</p>
-        )}
-      </div>
+            <Button size="icon" className="rounded-full shrink-0" onClick={() => { setEditPeixaria(undefined); setModalOpen(true); }}>
+              <Plus className="w-5 h-5" />
+            </Button>
+          </div>
+
+          <p className="text-xs text-muted-foreground text-center">Referência: {formatMonthLabel(mesAtual)}</p>
+
+          <div className="space-y-2">
+            {filtered.map((p) => {
+              const pago = isPago(p.id);
+              return (
+                <div key={p.id} className={cn("rounded-3xl bg-card p-4 shadow-sm", !p.ativo && "opacity-50")}>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-foreground truncate">{p.razao_social}</p>
+                      <p className="text-xs text-muted-foreground">{p.proprietario} • {p.cidade}</p>
+                      <p className="text-xs text-muted-foreground">{p.cpf_cnpj || "Sem documento"}</p>
+                      {p.whatsapp && (
+                        <div className="flex items-center gap-1 mt-0.5">
+                          <MessageCircle className="w-3 h-3 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">{p.whatsapp}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); window.open(`https://wa.me/55${p.whatsapp.replace(/\D/g, "")}`, '_blank'); }}
+                            className="ml-1 inline-flex items-center justify-center w-6 h-6 rounded-full bg-[hsl(142,70%,45%)] hover:bg-[hsl(142,70%,38%)] transition-colors"
+                          >
+                            <MessageCircle className="w-3 h-3 text-white" />
+                          </button>
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        Pgto dia {p.dia_pagamento} • Mensalidade: R$ {(p.mensalidade ?? 0).toFixed(2)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{p.ativo ? "Ativa" : "Inativa"}</p>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => { setEditPeixaria(p); setModalOpen(true); }}>
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleToggleActive(p)}>
+                          <Power className={cn("w-4 h-4", p.ativo ? "text-fish-treated" : "text-muted-foreground")} />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setDeleteTarget(p)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                          "text-xs gap-1 rounded-full px-3",
+                          pago ? "text-fish-treated bg-fish-treated/10" : "text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20"
+                        )}
+                        onClick={() => !pago && setConfirmTarget(p)}
+                        disabled={pago}
+                      >
+                        {pago ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+                        {pago ? "Pago" : "Pendente"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {filtered.length === 0 && (
+              <p className="text-center text-sm text-muted-foreground py-8">Nenhuma peixaria cadastrada</p>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="roots" className="mt-4">
+          <RootUsersTab />
+        </TabsContent>
+      </Tabs>
 
       <PeixariaFormModal open={modalOpen} onOpenChange={setModalOpen} editPeixaria={editPeixaria} onSaved={fetchAll} />
 
@@ -264,6 +273,13 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  // Edit-mode: admin email + reset password
+  const [adminEmail, setAdminEmail] = useState<string | null>(null);
+  const [adminUserId, setAdminUserId] = useState<string | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [showResetField, setShowResetField] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
   useEffect(() => {
     if (open) {
       setRazaoSocial(editPeixaria?.razao_social ?? "");
@@ -272,12 +288,49 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
       setWhatsapp(editPeixaria?.whatsapp ?? "");
       setEndereco(editPeixaria?.endereco ?? "");
       setCidade(editPeixaria?.cidade ?? "");
-      setDiaPagamento(String(editPeixaria?.dia_pagamento ?? 10));
+      const dia = String(editPeixaria?.dia_pagamento ?? 10);
+      setDiaPagamento(PAYMENT_DAYS.includes(dia as typeof PAYMENT_DAYS[number]) ? dia : "10");
       setMensalidade(String(editPeixaria?.mensalidade ?? 0));
       setEmail("");
       setPassword("");
+      setAdminEmail(null);
+      setAdminUserId(null);
+      setResetPassword("");
+      setShowResetField(false);
+
+      if (editPeixaria?.id) {
+        supabase.functions.invoke("get-user-email", { body: { peixaria_id: editPeixaria.id } })
+          .then(({ data }) => {
+            setAdminEmail(data?.email ?? null);
+            setAdminUserId(data?.app_user_id ?? null);
+          })
+          .catch(() => { setAdminEmail(null); });
+      }
     }
   }, [open, editPeixaria]);
+
+  const handleResetPassword = async () => {
+    if (!adminUserId) {
+      toast({ title: "Administrador não encontrado para esta peixaria", variant: "destructive" });
+      return;
+    }
+    if (resetPassword.length < 6) {
+      toast({ title: "Senha deve ter no mínimo 6 caracteres", variant: "destructive" });
+      return;
+    }
+    setResetting(true);
+    const { data, error } = await supabase.functions.invoke("update-user-password", {
+      body: { app_user_id: adminUserId, new_password: resetPassword },
+    });
+    setResetting(false);
+    if (error || data?.error) {
+      toast({ title: "Erro ao resetar senha", description: data?.error || error?.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Senha resetada com sucesso!" });
+    setResetPassword("");
+    setShowResetField(false);
+  };
 
   const handleSave = async () => {
     if (!razaoSocial.trim()) {
@@ -317,12 +370,7 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
       }
 
       const { data: fnData, error: fnError } = await supabase.functions.invoke("create-peixaria-admin", {
-        body: {
-          email,
-          password,
-          name: proprietario.trim() || razaoSocial.trim(),
-          peixaria_id: peixaria.id,
-        },
+        body: { email, password, name: proprietario.trim() || razaoSocial.trim(), peixaria_id: peixaria.id },
       });
 
       if (fnError || fnData?.error) {
@@ -367,12 +415,58 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
         </div>
         <div>
           <Label>Dia de Pagamento</Label>
-          <Input type="number" min="1" max="31" value={diaPagamento} onChange={(e) => setDiaPagamento(e.target.value)} placeholder="10" className="rounded-2xl h-12" />
+          <Select value={diaPagamento} onValueChange={setDiaPagamento}>
+            <SelectTrigger className="rounded-2xl h-12"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {PAYMENT_DAYS.map((d) => (
+                <SelectItem key={d} value={d}>Dia {d.padStart(2, "0")}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div>
           <Label>Valor da Mensalidade (R$)</Label>
           <Input type="number" min="0" step="0.01" value={mensalidade} onChange={(e) => setMensalidade(e.target.value)} placeholder="0.00" className="rounded-2xl h-12" />
         </div>
+
+        {editPeixaria && (
+          <div className="pt-2 border-t border-border space-y-3">
+            <p className="text-sm font-semibold text-foreground">Acesso do Administrador</p>
+            <div className="rounded-2xl bg-muted p-3">
+              <p className="text-xs text-muted-foreground">Login (e-mail) atual</p>
+              <p className="text-sm font-semibold text-foreground break-all">
+                {adminEmail ?? (adminUserId === null ? "Nenhum administrador encontrado" : "Carregando...")}
+              </p>
+            </div>
+            {adminUserId && (
+              !showResetField ? (
+                <Button variant="outline" className="w-full rounded-2xl gap-2" onClick={() => setShowResetField(true)}>
+                  <KeyRound className="w-4 h-4" /> Resetar Senha do Administrador
+                </Button>
+              ) : (
+                <div className="space-y-2">
+                  <Label>Nova Senha</Label>
+                  <Input
+                    type="password"
+                    value={resetPassword}
+                    onChange={(e) => setResetPassword(e.target.value)}
+                    placeholder="Mínimo 6 caracteres"
+                    className="rounded-2xl h-12"
+                  />
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="flex-1 rounded-2xl" onClick={() => { setShowResetField(false); setResetPassword(""); }}>
+                      Cancelar
+                    </Button>
+                    <Button className="flex-1 rounded-2xl" onClick={handleResetPassword} disabled={resetting}>
+                      {resetting ? "Salvando..." : "Confirmar Reset"}
+                    </Button>
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+        )}
+
         {!editPeixaria && (
           <>
             <div className="pt-2 border-t border-border">
@@ -390,6 +484,195 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
         )}
         <Button size="lg" className="w-full rounded-2xl" onClick={handleSave}>
           {editPeixaria ? "Guardar Alterações" : "Cadastrar Peixaria"}
+        </Button>
+      </div>
+    </SlideUpModal>
+  );
+}
+
+// ─── Aba: Usuários Root ───
+function RootUsersTab() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [users, setUsers] = useState<AppUser[]>([]);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editUser, setEditUser] = useState<AppUser | undefined>();
+  const [deleteTarget, setDeleteTarget] = useState<AppUser | null>(null);
+
+  const fetchUsers = async () => {
+    const { data } = await supabase.from("app_users").select("*").eq("role", "root").order("created_at", { ascending: false });
+    setUsers((data ?? []).filter((u) => u.auth_user_id !== user?.id));
+  };
+
+  useEffect(() => { fetchUsers(); }, [user]);
+
+  const handleToggleActive = async (u: AppUser) => {
+    await supabase.from("app_users").update({ active: !u.active }).eq("id", u.id);
+    fetchUsers();
+  };
+
+  const handleDelete = async (u: AppUser) => {
+    await supabase.from("app_users").delete().eq("id", u.id);
+    toast({ title: "Usuário excluído" });
+    fetchUsers();
+    setDeleteTarget(null);
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">Outros administradores Root do sistema</p>
+        <Button size="icon" className="rounded-full" onClick={() => { setEditUser(undefined); setModalOpen(true); }}>
+          <Plus className="w-5 h-5" />
+        </Button>
+      </div>
+
+      <div className="space-y-2">
+        {users.map((u) => (
+          <div key={u.id} className={cn("rounded-3xl bg-card p-4 shadow-sm", !u.active && "opacity-50")}>
+            <div className="flex items-center justify-between">
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold text-foreground truncate">{u.name}</p>
+                <p className="text-xs text-muted-foreground">Root • {u.active ? "Ativo" : "Inativo"}</p>
+                {u.cpf && <p className="text-xs text-muted-foreground">{u.cpf}</p>}
+              </div>
+              <div className="flex gap-1 shrink-0">
+                <Button variant="ghost" size="icon" onClick={() => { setEditUser(u); setModalOpen(true); }}>
+                  <Pencil className="w-4 h-4" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => handleToggleActive(u)}>
+                  <Power className={cn("w-4 h-4", u.active ? "text-fish-treated" : "text-muted-foreground")} />
+                </Button>
+                <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setDeleteTarget(u)}>
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        ))}
+        {users.length === 0 && (
+          <p className="text-center text-sm text-muted-foreground py-8">Nenhum outro usuário Root</p>
+        )}
+      </div>
+
+      <RootUserFormModal open={modalOpen} onOpenChange={setModalOpen} editUser={editUser} onSaved={fetchUsers} />
+
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir {deleteTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteTarget && handleDelete(deleteTarget)}>Excluir</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
+function RootUserFormModal({ open, onOpenChange, editUser, onSaved }: {
+  open: boolean; onOpenChange: (o: boolean) => void; editUser?: AppUser; onSaved: () => void;
+}) {
+  const { toast } = useToast();
+  const [name, setName] = useState("");
+  const [cpf, setCpf] = useState("");
+  const [whatsapp, setWhatsapp] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [currentEmail, setCurrentEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setName(editUser?.name ?? "");
+      setCpf(editUser?.cpf ?? "");
+      setWhatsapp(editUser?.whatsapp ?? "");
+      setEmail("");
+      setPassword("");
+      setNewPassword("");
+      setChangingPassword(false);
+      setCurrentEmail(null);
+      if (editUser?.id) {
+        supabase.functions.invoke("get-user-email", { body: { app_user_id: editUser.id } })
+          .then(({ data }) => setCurrentEmail(data?.email ?? null))
+          .catch(() => setCurrentEmail(null));
+      }
+    }
+  }, [open, editUser]);
+
+  const handleSave = async () => {
+    if (!name.trim()) return;
+    if (editUser) {
+      await supabase.from("app_users").update({ name: name.trim(), cpf, whatsapp }).eq("id", editUser.id);
+      if (changingPassword && newPassword) {
+        if (newPassword.length < 6) {
+          toast({ title: "Senha deve ter no mínimo 6 caracteres", variant: "destructive" });
+          return;
+        }
+        const { data, error } = await supabase.functions.invoke("update-user-password", {
+          body: { app_user_id: editUser.id, new_password: newPassword },
+        });
+        if (error || data?.error) {
+          toast({ title: "Erro ao alterar senha", description: data?.error || error?.message, variant: "destructive" });
+          return;
+        }
+      }
+      toast({ title: "Usuário atualizado!" });
+    } else {
+      if (!email || !password) {
+        toast({ title: "Preencha email e senha", variant: "destructive" });
+        return;
+      }
+      const { data, error } = await supabase.functions.invoke("create-user", {
+        body: { email, password, name: name.trim(), cpf, whatsapp, role: "root", peixaria_id: null },
+      });
+      if (error || data?.error) {
+        toast({ title: "Erro ao cadastrar", description: data?.error || error?.message, variant: "destructive" });
+        return;
+      }
+      toast({ title: "Usuário Root cadastrado!" });
+    }
+    onOpenChange(false);
+    onSaved();
+  };
+
+  return (
+    <SlideUpModal open={open} onOpenChange={onOpenChange} title={editUser ? "Editar Usuário Root" : "Novo Usuário Root"}>
+      <div className="space-y-4 mt-2">
+        <div><Label>Nome</Label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome completo" className="rounded-2xl h-12" /></div>
+        <div><Label>CPF</Label><Input value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="000.000.000-00" className="rounded-2xl h-12" /></div>
+        <div><Label>WhatsApp</Label><Input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="(00) 00000-0000" className="rounded-2xl h-12" /></div>
+
+        {!editUser && (
+          <>
+            <div><Label>Email (login)</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="root@email.com" className="rounded-2xl h-12" /></div>
+            <div><Label>Senha</Label><Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" className="rounded-2xl h-12" /></div>
+          </>
+        )}
+
+        {editUser && (
+          <div className="space-y-3">
+            <div className="rounded-2xl bg-muted p-3">
+              <p className="text-xs text-muted-foreground">Login (e-mail) atual</p>
+              <p className="text-sm font-semibold text-foreground break-all">{currentEmail ?? "Carregando..."}</p>
+            </div>
+            {!changingPassword ? (
+              <Button variant="outline" className="w-full rounded-2xl" onClick={() => setChangingPassword(true)}>Alterar Senha</Button>
+            ) : (
+              <div>
+                <Label>Nova Senha</Label>
+                <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Mínimo 6 caracteres" className="rounded-2xl h-12" />
+              </div>
+            )}
+          </div>
+        )}
+
+        <Button size="lg" className="w-full rounded-2xl" onClick={handleSave}>
+          {editUser ? "Guardar Alterações" : "Cadastrar Usuário Root"}
         </Button>
       </div>
     </SlideUpModal>
