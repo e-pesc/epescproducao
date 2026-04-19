@@ -265,19 +265,23 @@ export function useBilling() {
     const { data: { user } } = await supabase.auth.getUser();
     const now = new Date().toISOString();
 
-    // 1) Restituir estoque (subtrair os kg que foram comprados) + log de movimentação
-    const { data: produto } = await supabase.from("produtos").select("estoque_kg, nome").eq("id", divida.produto_id).single();
-    if (produto) {
-      const novoEstoque = +(Number(produto.estoque_kg) - Number(divida.kg)).toFixed(3);
-      if (novoEstoque < 0) throw new Error(`Estoque insuficiente para estornar (disponível: ${produto.estoque_kg}kg)`);
-      await supabase.from("produtos").update({ estoque_kg: novoEstoque }).eq("id", divida.produto_id);
-      await supabase.from("movimentacoes_estoque").insert({
-        produto_id: divida.produto_id,
-        tipo: "outros",
-        kg: Number(divida.kg),
-        observacao: `Estorno por cancelamento de compra — ${motivo}`,
-        peixaria_id: peixariaId,
-      });
+    // 1) Restituir estoque apenas se for compra de produto (não despesa avulsa)
+    let produto: { estoque_kg: number; nome: string } | null = null;
+    if (divida.produto_id && divida.kg) {
+      const { data } = await supabase.from("produtos").select("estoque_kg, nome").eq("id", divida.produto_id).single();
+      produto = data as any;
+      if (produto) {
+        const novoEstoque = +(Number(produto.estoque_kg) - Number(divida.kg)).toFixed(3);
+        if (novoEstoque < 0) throw new Error(`Estoque insuficiente para estornar (disponível: ${produto.estoque_kg}kg)`);
+        await supabase.from("produtos").update({ estoque_kg: novoEstoque }).eq("id", divida.produto_id);
+        await supabase.from("movimentacoes_estoque").insert({
+          produto_id: divida.produto_id,
+          tipo: "outros",
+          kg: Number(divida.kg),
+          observacao: `Estorno por cancelamento de compra — ${motivo}`,
+          peixaria_id: peixariaId,
+        });
+      }
     }
 
     // 2) Marcar pagamentos de saída relacionados como cancelados
