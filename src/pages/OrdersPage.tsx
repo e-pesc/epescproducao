@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatBRL } from "@/lib/format";
+import { openWhatsappReceipt } from "@/lib/whatsappReceipt";
 
 const PREPAID_METHODS = [
   { value: "pix", label: "Pix" },
@@ -343,10 +344,45 @@ function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete, onCancel }:
           )}
         </div>
       )}
-      {!isPendente && !isCancelled && onCancel && (
-        <Button variant="outline" size="sm" className="w-full rounded-2xl text-destructive border-destructive/40 hover:bg-destructive/10" onClick={() => onCancel(order)}>
-          <XCircle className="w-4 h-4" /> Cancelar Pedido
-        </Button>
+      {!isPendente && (
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={isCancelled || !client?.whatsapp}
+            className={cn(
+              "flex-1 rounded-2xl gap-1.5",
+              isCancelled || !client?.whatsapp
+                ? "opacity-50"
+                : "border-[hsl(142,70%,45%)]/40 text-[hsl(142,70%,38%)] hover:bg-[hsl(142,70%,45%)]/10"
+            )}
+            onClick={() => {
+              const valorTotal = Number(order.valor_total);
+              const valorPago = order.prepaid || order.pagamento === "avista"
+                ? valorTotal
+                : Number(order.entrada ?? 0);
+              openWhatsappReceipt(client?.whatsapp, {
+                tipo: "Pedido",
+                numero: `#${String(order.numero || 0).padStart(3, "0")}`,
+                data: order.created_at,
+                contraparte: client?.nome ?? "Cliente",
+                itens: (order.itens ?? []).map((it) => {
+                  const p = produtos.find((pr) => pr.id === it.produto_id);
+                  return { nome: p?.nome ?? "Item", sku: p?.sku, kg: Number(it.kg), preco_kg: Number(it.preco_kg) };
+                }),
+                valor_total: valorTotal,
+                valor_pago: valorPago,
+              });
+            }}
+          >
+            <MessageCircle className="w-4 h-4" /> WhatsApp
+          </Button>
+          {!isCancelled && onCancel && (
+            <Button variant="outline" size="sm" className="flex-1 rounded-2xl text-destructive border-destructive/40 hover:bg-destructive/10" onClick={() => onCancel(order)}>
+              <XCircle className="w-4 h-4" /> Cancelar
+            </Button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -430,7 +466,7 @@ export function OrdersPage() {
                 <OrderCard key={o.id} order={o} isPendente
                   onEdit={(o) => { setEditOrder(o); setFormOpen(true); }}
                   onFulfill={(o) => setFulfillOrder(o)}
-                  onDelete={(o) => setDeleteTarget(o)}
+                  onDelete={isAdmin ? (o) => setDeleteTarget(o) : undefined}
                 />
               ))}
             </div>
