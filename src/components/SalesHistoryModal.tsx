@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useVendas, type Venda } from "@/hooks/useVendas";
 import { useClientes } from "@/hooks/useClientes";
 import { useProdutos } from "@/hooks/useProdutos";
@@ -36,6 +36,10 @@ export function SalesHistoryModal({ open, onOpenChange }: Props) {
   const [year, setYear] = useState(now.getFullYear());
   const [search, setSearch] = useState("");
   const [cancelTarget, setCancelTarget] = useState<Venda | null>(null);
+
+  useEffect(() => {
+    if (open) refetch();
+  }, [open, refetch]);
 
   const prevMonth = () => { if (month === 0) { setMonth(11); setYear((y) => y - 1); } else setMonth((m) => m - 1); };
   const nextMonth = () => { if (month === 11) { setMonth(0); setYear((y) => y + 1); } else setMonth((m) => m + 1); };
