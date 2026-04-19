@@ -135,6 +135,7 @@ function UserFormModal({ open, onOpenChange, editUser, onSaved }: {
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
+  const [currentEmail, setCurrentEmail] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
@@ -146,6 +147,13 @@ function UserFormModal({ open, onOpenChange, editUser, onSaved }: {
       setPassword("");
       setNewPassword("");
       setChangingPassword(false);
+      setCurrentEmail(null);
+
+      if (editUser?.id) {
+        supabase.functions.invoke("get-user-email", { body: { app_user_id: editUser.id } })
+          .then(({ data }) => setCurrentEmail(data?.email ?? null))
+          .catch(() => setCurrentEmail(null));
+      }
     }
   }, [open, editUser]);
 
@@ -234,7 +242,13 @@ function UserFormModal({ open, onOpenChange, editUser, onSaved }: {
           </>
         )}
         {editUser && (
-          <div>
+          <div className="space-y-3">
+            <div className="rounded-2xl bg-muted p-3">
+              <p className="text-xs text-muted-foreground">Login (e-mail) atual</p>
+              <p className="text-sm font-semibold text-foreground break-all">
+                {currentEmail ?? "Carregando..."}
+              </p>
+            </div>
             {!changingPassword ? (
               <Button variant="outline" className="w-full rounded-2xl" onClick={() => setChangingPassword(true)}>
                 Alterar Senha
