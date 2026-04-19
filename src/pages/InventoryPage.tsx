@@ -191,6 +191,8 @@ export function InventoryPage() {
       setBuyProductId(""); setBuySupplierId(""); setBuyKg(""); setBuyPriceKg(""); setBuyPayment("avista"); setBuyEntrada(""); setBuyOpen(false);
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -201,9 +203,14 @@ export function InventoryPage() {
           <Package className="w-6 h-6 text-secondary" />
           <h1 className="text-xl font-bold text-foreground">Estoque</h1>
         </div>
-        <Button variant="default" size="sm" className="rounded-2xl" onClick={() => setBuyOpen(true)}>
-          <ShoppingCart className="w-4 h-4" /> Comprar
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="rounded-2xl" onClick={() => setHistoryOpen(true)}>
+            <History className="w-4 h-4" /> Histórico
+          </Button>
+          <Button variant="default" size="sm" className="rounded-2xl" onClick={() => setBuyOpen(true)}>
+            <ShoppingCart className="w-4 h-4" /> Comprar
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
