@@ -353,7 +353,11 @@ function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete, onCancel }:
 }
 
 export function OrdersPage() {
-  const { pedidos, deletePedido, refetch: refetchPedidos } = usePedidos();
+  const { pedidos, deletePedido, cancelPedido, refetch: refetchPedidos } = usePedidos();
+  const { refetch: refetchProdutos } = useProdutos();
+  const { refetch: refetchBilling } = useBilling();
+  const { role } = useAuth();
+  const isAdmin = role === "administrador" || role === "root";
   const { toast } = useToast();
   const now = new Date();
   const [filterMonth, setFilterMonth] = useState(now.getMonth());
@@ -363,6 +367,7 @@ export function OrdersPage() {
   const [editOrder, setEditOrder] = useState<Pedido | undefined>();
   const [fulfillOrder, setFulfillOrder] = useState<Pedido | undefined>();
   const [deleteTarget, setDeleteTarget] = useState<Pedido | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<Pedido | null>(null);
 
   const prevMonth = () => { if (filterMonth === 0) { setFilterMonth(11); setFilterYear((y) => y - 1); } else setFilterMonth((m) => m - 1); };
   const nextMonth = () => { if (filterMonth === 11) { setFilterMonth(0); setFilterYear((y) => y + 1); } else setFilterMonth((m) => m + 1); };
@@ -376,7 +381,7 @@ export function OrdersPage() {
     });
   }, [pedidos, filterMonth, filterYear, search]);
 
-  const pendentes = filtered.filter((o) => o.status === "pendente");
+  const pendentes = filtered.filter((o) => o.status === "pendente" && !o.cancelado);
   const atendidos = filtered.filter((o) => o.status === "atendido");
 
   const handleDelete = async (order: Pedido) => {
@@ -387,6 +392,14 @@ export function OrdersPage() {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
     }
     setDeleteTarget(null);
+  };
+
+  const handleCancel = async (motivo: string) => {
+    if (!cancelTarget) return;
+    await cancelPedido(cancelTarget.id, motivo);
+    await Promise.all([refetchPedidos(), refetchProdutos(), refetchBilling()]);
+    toast({ title: "Pedido cancelado", description: "Estoque, entradas e débitos foram estornados." });
+    setCancelTarget(null);
   };
 
   return (
