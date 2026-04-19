@@ -103,5 +103,68 @@ export function useVendas() {
     return venda.id;
   };
 
-  return { vendas, loading, addVenda, refetch: fetch };
+  const cancelVenda = async (vendaId: string, motivo: string) => {
+    if (!motivo?.trim()) throw new Error("Motivo do cancelamento é obrigatório");
+
+    const { data: { user } } = await supabase.auth.getUser();
+    const venda = vendas.find((v) => v.id === vendaId);
+    if (!venda) throw new Error("Venda não encontrada");
+    if (venda.cancelado) throw new Error("Venda já cancelada");
+
+    // 1) Restituir estoque dos itens
+    const itens = venda.itens ?? [];
+    for (const item of itens) {
+      const { data: prod } = await supabase.from("produtos").select("estoque_kg, nome").eq("id", item.produto_id).single();
+      if (prod) {
+        await supabase.from("produtos").update({
+          estoque_kg: +(Number(prod.estoque_kg) + Number(item.kg)).toFixed(3),
+        }).eq("id", item.produto_id);
+        // Movimentação de estoque tipo "outros" com observação
+        await supabase.from("movimentacoes_estoque").insert({
+          produto_id: item.produto_id,
+          tipo: "outros" as const,
+          kg: -Number(item.kg), // negativo = entrada (estorno de saída)
+          observacao: `Estorno venda cancelada - ${motivo}`,
+          peixaria_id: peixariaId,
+        });
+      }
+    }
+
+    // 2) Marcar entradas como canceladas
+    await supabase
+      .from("pagamentos_entrada")
+      .update({ cancelado: true, cancelado_at: new Date().toISOString() })
+      .eq("venda_id", vendaId);
+
+    // 3) Subtrair débito do cliente (se prazo)
+    if (venda.forma_pagamento === "prazo" && venda.cliente_id) {
+      const { data: cliente } = await supabase.from("clientes").select("debito").eq("id", venda.cliente_id).single();
+      if (cliente) {
+        const novoDebito = Math.max(0, +(Number(cliente.debito) - Number(venda.valor_total)).toFixed(2));
+        await supabase.from("clientes").update({ debito: novoDebito }).eq("id", venda.cliente_id);
+      }
+    }
+
+    // 4) Marcar venda como cancelada
+    const { error } = await supabase.from("vendas").update({
+      cancelado: true,
+      cancelado_motivo: motivo.trim(),
+      cancelado_at: new Date().toISOString(),
+      cancelado_por: user?.id ?? null,
+    }).eq("id", vendaId);
+    if (error) throw error;
+
+    logActivity({
+      action: "Venda Cancelada",
+      entity: "Venda",
+      entity_id: vendaId.slice(0, 8),
+      amount: Number(venda.valor_total),
+      description: `Venda cancelada - Motivo: ${motivo.trim()}`,
+      peixaria_id: peixariaId,
+    });
+
+    await fetch();
+  };
+
+  return { vendas, loading, addVenda, cancelVenda, refetch: fetch };
 }
