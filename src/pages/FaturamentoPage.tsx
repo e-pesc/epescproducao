@@ -549,7 +549,14 @@ function TabEntradas({ filterMonth, filterYear }: { filterMonth: number; filterY
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), [pagamentosEntrada, filterMonth, filterYear]);
 
   const originLabel = (origin: string) => {
+    if (origin?.startsWith("receita:")) return "Receita Avulsa";
+    if (origin?.startsWith("receita_pendente:")) return "Receita Avulsa";
     switch (origin) { case "venda": return "Venda Direta"; case "pedido": return "Pedido Atendido"; case "recebimento": return "Recebimento de Dívida"; default: return origin; }
+  };
+  const receitaDesc = (origin: string) => {
+    if (origin?.startsWith("receita:")) return origin.slice("receita:".length);
+    if (origin?.startsWith("receita_pendente:")) return origin.slice("receita_pendente:".length);
+    return null;
   };
 
   if (loading) return <ListSkeleton />;
