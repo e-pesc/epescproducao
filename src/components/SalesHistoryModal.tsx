@@ -13,7 +13,7 @@ import { CancelReasonModal } from "@/components/CancelReasonModal";
 import { ChevronLeft, ChevronRight, Calendar, History, Search, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/format";
-import { useProdutos as _ } from "@/hooks/useProdutos";
+
 
 const MONTH_NAMES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
