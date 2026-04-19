@@ -464,6 +464,15 @@ export function OrdersPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {cancelTarget && (
+        <CancelReasonModal
+          open={!!cancelTarget}
+          onOpenChange={(o) => !o && setCancelTarget(null)}
+          title={`Cancelar pedido #${String(cancelTarget.numero || 0).padStart(3, "0")}`}
+          onConfirm={handleCancel}
+        />
+      )}
     </div>
   );
 }
