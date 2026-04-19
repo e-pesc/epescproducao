@@ -169,10 +169,19 @@ export function InventoryPage() {
         // Register as already paid debt for report tracking
         await addDividaCompra({ fornecedor_id: buySupplierId, produto_id: buyProductId, kg, preco_kg: priceKg, quitado: true, valor_pago: +buyTotal.toFixed(2) });
       } else {
-        if (entradaNum > 0) {
-          await addPagamentoSaida({ fornecedor_id: buySupplierId, valor: entradaNum, tipo: "adiantamento" });
+        const entradaSafe = Math.min(entradaNum, +buyTotal.toFixed(2));
+        if (entradaSafe > 0) {
+          await addPagamentoSaida({ fornecedor_id: buySupplierId, valor: entradaSafe, tipo: "adiantamento" });
         }
-        await addDividaCompra({ fornecedor_id: buySupplierId, produto_id: buyProductId, kg, preco_kg: priceKg });
+        const quitado = entradaSafe >= +buyTotal.toFixed(2);
+        await addDividaCompra({
+          fornecedor_id: buySupplierId,
+          produto_id: buyProductId,
+          kg,
+          preco_kg: priceKg,
+          valor_pago: entradaSafe,
+          quitado,
+        });
       }
 
       const produto = produtos.find(p => p.id === buyProductId);
