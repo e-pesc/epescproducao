@@ -503,7 +503,10 @@ function TabSaidas({ filterMonth, filterYear }: { filterMonth: number; filterYea
 
   return (
     <div className="space-y-3">
-      <Button onClick={() => setExpenseOpen(true)} className="w-full rounded-2xl gap-2" variant="outline">
+      <Button
+        onClick={() => setExpenseOpen(true)}
+        className="w-full rounded-2xl gap-2 bg-amber-400 text-foreground hover:bg-amber-400/90"
+      >
         <Receipt className="w-4 h-4" /> Lançar Despesa
       </Button>
       {loading ? <ListSkeleton /> : sorted.length === 0 ? <EmptyState text="Nenhum pagamento registrado" /> : (
