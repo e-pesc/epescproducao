@@ -206,6 +206,85 @@ export function useBilling() {
     await invalidateAll();
   };
 
+  // ─── Receita avulsa (entrada genérica, sem cliente/venda) ───
+  const addReceita = async (d: { descricao: string; valor: number; avista: boolean; recorrente: boolean }) => {
+    const valor = +d.valor.toFixed(2);
+    const now = new Date();
+    const baseMonth = now.getMonth();
+    const baseYear = now.getFullYear();
+
+    if (d.avista) {
+      // Lança direto em Entradas
+      await supabase.from("pagamentos_entrada").insert({
+        cliente_id: null,
+        origem: `receita:${d.descricao}`,
+        valor,
+        tipo: "total",
+        peixaria_id: peixariaId,
+      });
+      logActivity({
+        action: "Receita Lançada",
+        entity: "Receita",
+        entity_id: d.descricao.slice(0, 8),
+        amount: valor,
+        description: `Receita à vista — ${d.descricao}`,
+        peixaria_id: peixariaId,
+      });
+    } else {
+      // Lança em A Receber (genérico). Se recorrente, cria 12 meses.
+      const months = d.recorrente ? 12 : 1;
+      const rows = [];
+      for (let i = 0; i < months; i++) {
+        rows.push({
+          cliente_id: null,
+          origem: `receita_pendente:${d.descricao}`,
+          valor,
+          tipo: "pendente",
+          peixaria_id: peixariaId,
+          created_at: new Date(baseYear, baseMonth + i, Math.min(now.getDate(), 28)).toISOString(),
+        });
+      }
+      await supabase.from("pagamentos_entrada").insert(rows);
+      logActivity({
+        action: "Receita Lançada",
+        entity: "Receita",
+        entity_id: d.descricao.slice(0, 8),
+        amount: valor,
+        description: `Receita a prazo${d.recorrente ? " (recorrente 12 meses)" : ""} — ${d.descricao}`,
+        peixaria_id: peixariaId,
+      });
+    }
+
+    await invalidateAll();
+  };
+
+  const quitarReceita = async (receitaId: string) => {
+    const { data: rec } = await supabase.from("pagamentos_entrada").select("*").eq("id", receitaId).single();
+    if (!rec) throw new Error("Receita não encontrada");
+    const desc = (rec.origem || "").startsWith("receita_pendente:") ? rec.origem.slice("receita_pendente:".length) : "Receita";
+
+    // Marca a pendência como cancelada (consumida) e cria entrada efetiva
+    await supabase.from("pagamentos_entrada").update({ cancelado: true, cancelado_at: new Date().toISOString() }).eq("id", receitaId);
+    await supabase.from("pagamentos_entrada").insert({
+      cliente_id: null,
+      origem: `receita:${desc}`,
+      valor: rec.valor,
+      tipo: "total",
+      peixaria_id: peixariaId,
+    });
+
+    logActivity({
+      action: "Receita Recebida",
+      entity: "Receita",
+      entity_id: desc.slice(0, 8),
+      amount: Number(rec.valor),
+      description: `Recebimento de receita — ${desc}`,
+      peixaria_id: peixariaId,
+    });
+
+    await invalidateAll();
+  };
+
   const addPagamentoEntrada = async (p: {
     cliente_id?: string | null;
     origem: string;
