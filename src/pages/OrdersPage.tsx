@@ -441,7 +441,9 @@ export function OrdersPage() {
             <div className="text-center py-12 text-muted-foreground"><FileText className="w-12 h-12 mx-auto mb-3 opacity-30" /><p className="text-sm">Nenhum pedido atendido</p></div>
           ) : (
             <div className="space-y-3">
-              {atendidos.map((o) => <OrderCard key={o.id} order={o} isPendente={false} />)}
+              {atendidos.map((o) => (
+                <OrderCard key={o.id} order={o} isPendente={false} onCancel={isAdmin && !o.cancelado ? (o) => setCancelTarget(o) : undefined} />
+              ))}
             </div>
           )}
         </TabsContent>
