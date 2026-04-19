@@ -25,6 +25,9 @@ export interface Pedido {
   fulfilled_at: string | null;
   itens?: ItemPedido[];
   peixaria_id: string | null;
+  cancelado?: boolean;
+  cancelado_motivo?: string | null;
+  cancelado_at?: string | null;
 }
 
 export function usePedidos() {
