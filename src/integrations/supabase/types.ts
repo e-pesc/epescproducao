@@ -157,15 +157,19 @@ export type Database = {
           cancelado_motivo: string | null
           cancelado_por: string | null
           created_at: string
-          fornecedor_id: string
+          descricao: string | null
+          fornecedor_id: string | null
           id: string
-          kg: number
+          kg: number | null
+          mes_referencia: string | null
           peixaria_id: string | null
-          preco_kg: number
-          produto_id: string
+          preco_kg: number | null
+          produto_id: string | null
           quitado: boolean
+          recorrente: boolean
           valor_pago: number
           valor_total: number
+          vencimento: string | null
         }
         Insert: {
           cancelado?: boolean
@@ -173,15 +177,19 @@ export type Database = {
           cancelado_motivo?: string | null
           cancelado_por?: string | null
           created_at?: string
-          fornecedor_id: string
+          descricao?: string | null
+          fornecedor_id?: string | null
           id?: string
-          kg: number
+          kg?: number | null
+          mes_referencia?: string | null
           peixaria_id?: string | null
-          preco_kg: number
-          produto_id: string
+          preco_kg?: number | null
+          produto_id?: string | null
           quitado?: boolean
+          recorrente?: boolean
           valor_pago?: number
           valor_total: number
+          vencimento?: string | null
         }
         Update: {
           cancelado?: boolean
@@ -189,15 +197,19 @@ export type Database = {
           cancelado_motivo?: string | null
           cancelado_por?: string | null
           created_at?: string
-          fornecedor_id?: string
+          descricao?: string | null
+          fornecedor_id?: string | null
           id?: string
-          kg?: number
+          kg?: number | null
+          mes_referencia?: string | null
           peixaria_id?: string | null
-          preco_kg?: number
-          produto_id?: string
+          preco_kg?: number | null
+          produto_id?: string | null
           quitado?: boolean
+          recorrente?: boolean
           valor_pago?: number
           valor_total?: number
+          vencimento?: string | null
         }
         Relationships: [
           {
@@ -537,8 +549,9 @@ export type Database = {
           cancelado: boolean
           cancelado_at: string | null
           created_at: string
+          descricao: string | null
           divida_id: string | null
-          fornecedor_id: string
+          fornecedor_id: string | null
           id: string
           peixaria_id: string | null
           tipo: string
@@ -548,8 +561,9 @@ export type Database = {
           cancelado?: boolean
           cancelado_at?: string | null
           created_at?: string
+          descricao?: string | null
           divida_id?: string | null
-          fornecedor_id: string
+          fornecedor_id?: string | null
           id?: string
           peixaria_id?: string | null
           tipo?: string
@@ -559,8 +573,9 @@ export type Database = {
           cancelado?: boolean
           cancelado_at?: string | null
           created_at?: string
+          descricao?: string | null
           divida_id?: string | null
-          fornecedor_id?: string
+          fornecedor_id?: string | null
           id?: string
           peixaria_id?: string | null
           tipo?: string
@@ -675,6 +690,7 @@ export type Database = {
           proprietario: string
           razao_social: string
           updated_at: string
+          vendedor_root_id: string | null
           whatsapp: string
         }
         Insert: {
@@ -689,6 +705,7 @@ export type Database = {
           proprietario?: string
           razao_social: string
           updated_at?: string
+          vendedor_root_id?: string | null
           whatsapp?: string
         }
         Update: {
@@ -703,9 +720,18 @@ export type Database = {
           proprietario?: string
           razao_social?: string
           updated_at?: string
+          vendedor_root_id?: string | null
           whatsapp?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "peixarias_vendedor_root_id_fkey"
+            columns: ["vendedor_root_id"]
+            isOneToOne: false
+            referencedRelation: "app_users"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       produtos: {
         Row: {
