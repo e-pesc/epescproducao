@@ -251,18 +251,127 @@ function TabAPagar({ filterMonth, filterYear }: { filterMonth: number; filterYea
   );
 }
 
+// ─── Income Modal ───
+function IncomeModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const { addReceita } = useBilling();
+  const { toast } = useToast();
+  const [descricao, setDescricao] = useState("");
+  const [valor, setValor] = useState("");
+  const [avista, setAvista] = useState(true);
+  const [recorrente, setRecorrente] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const reset = () => { setDescricao(""); setValor(""); setAvista(true); setRecorrente(false); };
+
+  const handleSave = async () => {
+    const v = parseFloat(valor) || 0;
+    if (!descricao.trim()) { toast({ title: "Informe a descrição", variant: "destructive" }); return; }
+    if (v <= 0) { toast({ title: "Informe um valor válido", variant: "destructive" }); return; }
+    try {
+      setSubmitting(true);
+      await addReceita({ descricao: descricao.trim(), valor: v, avista, recorrente: !avista && recorrente });
+      toast({
+        title: "Receita lançada!",
+        description: avista
+          ? `${formatBRL(v)} em Entradas`
+          : `${formatBRL(v)} em A Receber${recorrente ? " (12 meses)" : ""}`,
+      });
+      reset();
+      onOpenChange(false);
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <SlideUpModal open={open} onOpenChange={onOpenChange} title="Lançar Receita">
+      <div className="space-y-4 mt-2">
+        <div>
+          <Label>Descrição</Label>
+          <Input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Ex: Aluguel recebido" className="rounded-2xl h-12" />
+        </div>
+        <div>
+          <Label>Valor (R$)</Label>
+          <Input type="number" step="0.01" min="0" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0.00" className="rounded-2xl h-12 text-lg" />
+        </div>
+        <div className="flex items-center justify-between rounded-2xl bg-muted px-4 py-3">
+          <div>
+            <Label className="text-sm">À Vista</Label>
+            <p className="text-[11px] text-muted-foreground">Lança direto em Entradas</p>
+          </div>
+          <Switch checked={avista} onCheckedChange={(v) => { setAvista(v); if (v) setRecorrente(false); }} />
+        </div>
+        {!avista && (
+          <div className="flex items-center justify-between rounded-2xl bg-muted px-4 py-3">
+            <div>
+              <Label className="text-sm">Recorrente (12 meses)</Label>
+              <p className="text-[11px] text-muted-foreground">Replica em todos os meses futuros</p>
+            </div>
+            <Switch checked={recorrente} onCheckedChange={setRecorrente} />
+          </div>
+        )}
+        {!avista && (
+          <p className="text-xs text-muted-foreground text-center">Será lançado em <strong>A Receber</strong></p>
+        )}
+        <Button
+          size="lg"
+          className="w-full rounded-2xl bg-fish-treated text-primary-foreground hover:bg-fish-treated/90"
+          onClick={handleSave}
+          disabled={submitting}
+        >
+          {submitting ? "Salvando..." : "Lançar Receita"}
+        </Button>
+      </div>
+    </SlideUpModal>
+  );
+}
+
 // ─── Tab: A Receber ───
-function TabAReceber() {
+function TabAReceber({ filterMonth, filterYear }: { filterMonth: number; filterYear: number }) {
   const { clientes, loading } = useClientes();
+  const { pagamentosEntrada, loading: loadingBilling, quitarReceita } = useBilling();
+  const { toast } = useToast();
   const [receiving, setReceiving] = useState<{ id: string; nome: string; debito: number } | undefined>();
+  const [incomeOpen, setIncomeOpen] = useState(false);
+  const [quitandoId, setQuitandoId] = useState<string | null>(null);
 
   const debtors = clientes.filter((c) => Number(c.debito) > 0);
 
-  if (loading) return <ListSkeleton />;
+  const receitasPendentes = pagamentosEntrada.filter((p) => {
+    if (p.cancelado) return false;
+    if (p.tipo !== "pendente") return false;
+    if (!p.origem?.startsWith("receita_pendente:")) return false;
+    const d = new Date(p.created_at);
+    return d.getMonth() === filterMonth && d.getFullYear() === filterYear;
+  });
+
+  const handleQuitarReceita = async (id: string) => {
+    try {
+      setQuitandoId(id);
+      await quitarReceita(id);
+      toast({ title: "Receita recebida!", description: "Lançada em Entradas" });
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    } finally {
+      setQuitandoId(null);
+    }
+  };
+
+  if (loading || loadingBilling) return <ListSkeleton />;
 
   return (
-    <>
-      {debtors.length === 0 ? <EmptyState text="Nenhum débito pendente de clientes" /> : (
+    <div className="space-y-3">
+      <Button
+        onClick={() => setIncomeOpen(true)}
+        className="w-full rounded-2xl gap-2 bg-fish-treated text-primary-foreground hover:bg-fish-treated/90"
+      >
+        <Receipt className="w-4 h-4" /> Lançar Receita
+      </Button>
+      {debtors.length === 0 && receitasPendentes.length === 0 ? (
+        <EmptyState text="Nenhum débito ou receita pendente" />
+      ) : (
         <div className="space-y-3">
           {debtors.map((client) => (
             <div key={client.id} className="rounded-3xl bg-card p-4 shadow-sm border-l-4 border-l-amber-400">
@@ -278,10 +387,35 @@ function TabAReceber() {
               </Button>
             </div>
           ))}
+          {receitasPendentes.map((r) => {
+            const desc = (r.origem || "").slice("receita_pendente:".length);
+            return (
+              <div key={r.id} className="rounded-3xl bg-card p-4 shadow-sm border-l-4 border-l-fish-treated">
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <h3 className="font-bold text-foreground text-base">{desc}</h3>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Calendar className="w-3 h-3" /> {new Date(r.created_at).toLocaleDateString("pt-BR")} • Receita
+                    </p>
+                  </div>
+                  <span className="text-lg font-bold text-fish-treated">{formatBRL(Number(r.valor))}</span>
+                </div>
+                <Button
+                  size="sm"
+                  className="w-full rounded-2xl bg-fish-treated text-primary-foreground hover:bg-fish-treated/90"
+                  onClick={() => handleQuitarReceita(r.id)}
+                  disabled={quitandoId === r.id}
+                >
+                  <Wallet className="w-4 h-4" /> {quitandoId === r.id ? "Processando..." : "Quitar"}
+                </Button>
+              </div>
+            );
+          })}
         </div>
       )}
       {receiving && <ReceiveModal open={!!receiving} onOpenChange={(o) => !o && setReceiving(undefined)} clientId={receiving.id} clientName={receiving.nome} debt={receiving.debito} />}
-    </>
+      <IncomeModal open={incomeOpen} onOpenChange={setIncomeOpen} />
+    </div>
   );
 }
 
