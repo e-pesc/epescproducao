@@ -29,6 +29,7 @@ interface Peixaria {
   mensalidade: number;
   ativo: boolean;
   created_at: string;
+  vendedor_root_id: string | null;
 }
 
 interface PagamentoMensalidade {
@@ -42,6 +43,8 @@ interface PagamentoMensalidade {
 type AppUser = Tables<"app_users">;
 
 const PAYMENT_DAYS = ["5", "10", "15"] as const;
+const MENSALIDADE_BASE = 59.9;
+const MONTH_NAMES_FULL = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 function formatCpfCnpj(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 14);
