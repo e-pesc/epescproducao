@@ -21,6 +21,10 @@ export interface Venda {
   entrada: number | null;
   created_at: string;
   peixaria_id: string | null;
+  cancelado?: boolean;
+  cancelado_motivo?: string | null;
+  cancelado_at?: string | null;
+  itens?: { id: string; produto_id: string; kg: number; preco_kg: number }[];
 }
 
 export function useVendas() {
