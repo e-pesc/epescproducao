@@ -544,6 +544,7 @@ function TabEntradas({ filterMonth, filterYear }: { filterMonth: number; filterY
   const { produtos } = useProdutos();
 
   const sorted = useMemo(() => pagamentosEntrada
+    .filter((p) => p.tipo !== "pendente")
     .filter((p) => { const d = new Date(p.created_at); return d.getMonth() === filterMonth && d.getFullYear() === filterYear; })
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), [pagamentosEntrada, filterMonth, filterYear]);
 
