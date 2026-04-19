@@ -8,7 +8,7 @@ import { SlideUpModal } from "@/components/SlideUpModal";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchableSelect } from "@/components/SearchableSelect";
-import { ArrowRightLeft, TrendingDown, Package, ShoppingCart, DollarSign, Search, History } from "lucide-react";
+import { ArrowRightLeft, TrendingDown, Package, ShoppingCart, DollarSign, Search, History, Plus, Trash2 } from "lucide-react";
 import { PurchaseHistoryModal } from "@/components/PurchaseHistoryModal";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
