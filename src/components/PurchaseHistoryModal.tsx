@@ -146,14 +146,18 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={isCancelled || !f?.whatsapp}
+                        disabled={isCancelled}
                         className={cn(
                           "flex-1 rounded-2xl gap-1.5",
-                          isCancelled || !f?.whatsapp
+                          isCancelled
                             ? "opacity-50"
                             : "border-[hsl(142,70%,45%)]/40 text-[hsl(142,70%,38%)] hover:bg-[hsl(142,70%,45%)]/10"
                         )}
                         onClick={() => {
+                          if (!f?.whatsapp) {
+                            toast({ title: "WhatsApp não cadastrado", description: "Este fornecedor não possui WhatsApp cadastrado.", variant: "destructive" });
+                            return;
+                          }
                           openWhatsappReceipt(f?.whatsapp, {
                             tipo: "Compra",
                             data: d.created_at,
