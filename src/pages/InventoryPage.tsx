@@ -126,10 +126,10 @@ export function InventoryPage() {
   const { peixariaId } = useAuth();
   const { toast } = useToast();
   const [buyOpen, setBuyOpen] = useState(false);
-  const [buyProductId, setBuyProductId] = useState("");
   const [buySupplierId, setBuySupplierId] = useState("");
-  const [buyKg, setBuyKg] = useState("");
-  const [buyPriceKg, setBuyPriceKg] = useState("");
+  const [buyItems, setBuyItems] = useState<Array<{ produto_id: string; kg: string; preco_kg: string }>>([
+    { produto_id: "", kg: "", preco_kg: "" },
+  ]);
   const [buyPayment, setBuyPayment] = useState<"avista" | "prazo">("avista");
   const [buyEntrada, setBuyEntrada] = useState("");
   const [search, setSearch] = useState("");
@@ -144,60 +144,106 @@ export function InventoryPage() {
   const totalInvested = activeProducts.reduce((acc, p) => acc + Number(p.estoque_kg) * Number(p.preco_compra), 0);
   const totalKgInStock = activeProducts.reduce((acc, p) => acc + Number(p.estoque_kg), 0);
 
-  const buyTotal = useMemo(() => {
-    const kg = parseFloat(buyKg) || 0;
-    const price = parseFloat(buyPriceKg) || 0;
-    return kg * price;
-  }, [buyKg, buyPriceKg]);
+  const itemTotal = (it: { kg: string; preco_kg: string }) => (parseFloat(it.kg) || 0) * (parseFloat(it.preco_kg) || 0);
+  const buyTotal = useMemo(() => buyItems.reduce((acc, it) => acc + itemTotal(it), 0), [buyItems]);
+
+  const updateItem = (idx: number, patch: Partial<{ produto_id: string; kg: string; preco_kg: string }>) => {
+    setBuyItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+  };
+  const addItem = () => setBuyItems((prev) => [...prev, { produto_id: "", kg: "", preco_kg: "" }]);
+  const removeItem = (idx: number) =>
+    setBuyItems((prev) => (prev.length === 1 ? prev : prev.filter((_, i) => i !== idx)));
+
+  const resetBuy = () => {
+    setBuySupplierId("");
+    setBuyItems([{ produto_id: "", kg: "", preco_kg: "" }]);
+    setBuyPayment("avista");
+    setBuyEntrada("");
+  };
 
   const handleBuy = async () => {
     if (submitting) return;
-    const kg = parseFloat(buyKg);
-    const priceKg = parseFloat(buyPriceKg);
-    if (!buyProductId || !buySupplierId || !kg || kg <= 0 || !priceKg || priceKg <= 0) return;
+    if (!buySupplierId) return;
+    const validItems = buyItems
+      .map((it) => ({ produto_id: it.produto_id, kg: parseFloat(it.kg), preco_kg: parseFloat(it.preco_kg) }))
+      .filter((it) => it.produto_id && it.kg > 0 && it.preco_kg > 0);
+    if (validItems.length === 0) return;
+
+    const total = +validItems.reduce((acc, it) => acc + it.kg * it.preco_kg, 0).toFixed(2);
 
     setSubmitting(true);
     try {
-      await updateEstoque(buyProductId, kg);
-      await updateProduto(buyProductId, { preco_compra: priceKg });
+      // 1) Atualiza estoque + preço de cada item
+      for (const it of validItems) {
+        await updateEstoque(it.produto_id, it.kg);
+        await updateProduto(it.produto_id, { preco_compra: it.preco_kg });
+      }
 
       const entradaNum = parseFloat(buyEntrada) || 0;
+      const fornecedor = fornecedores.find((f) => f.id === buySupplierId);
 
-      // Always register the purchase in dividas_compra so it appears in reports
       if (buyPayment === "avista") {
-        await addPagamentoSaida({ fornecedor_id: buySupplierId, valor: +buyTotal.toFixed(2), tipo: "total" });
-        // Register as already paid debt for report tracking
-        await addDividaCompra({ fornecedor_id: buySupplierId, produto_id: buyProductId, kg, preco_kg: priceKg, quitado: true, valor_pago: +buyTotal.toFixed(2) });
+        await addPagamentoSaida({ fornecedor_id: buySupplierId, valor: total, tipo: "total" });
+        for (const it of validItems) {
+          const valor = +(it.kg * it.preco_kg).toFixed(2);
+          await addDividaCompra({
+            fornecedor_id: buySupplierId,
+            produto_id: it.produto_id,
+            kg: it.kg,
+            preco_kg: it.preco_kg,
+            quitado: true,
+            valor_pago: valor,
+          });
+        }
       } else {
-        const entradaSafe = Math.min(entradaNum, +buyTotal.toFixed(2));
+        const entradaSafe = Math.min(entradaNum, total);
         if (entradaSafe > 0) {
           await addPagamentoSaida({ fornecedor_id: buySupplierId, valor: entradaSafe, tipo: "adiantamento" });
         }
-        const quitado = entradaSafe >= +buyTotal.toFixed(2);
-        await addDividaCompra({
-          fornecedor_id: buySupplierId,
-          produto_id: buyProductId,
-          kg,
-          preco_kg: priceKg,
-          valor_pago: entradaSafe,
-          quitado,
-        });
+        // Distribui a entrada proporcionalmente entre os itens
+        let remainingEntrada = entradaSafe;
+        for (let i = 0; i < validItems.length; i++) {
+          const it = validItems[i];
+          const valor = +(it.kg * it.preco_kg).toFixed(2);
+          const isLast = i === validItems.length - 1;
+          const share = isLast
+            ? +remainingEntrada.toFixed(2)
+            : +Math.min(remainingEntrada, +(valor * (entradaSafe / total)).toFixed(2)).toFixed(2);
+          remainingEntrada = +(remainingEntrada - share).toFixed(2);
+          const quitado = share >= valor;
+          await addDividaCompra({
+            fornecedor_id: buySupplierId,
+            produto_id: it.produto_id,
+            kg: it.kg,
+            preco_kg: it.preco_kg,
+            valor_pago: share,
+            quitado,
+          });
+        }
       }
 
-      const produto = produtos.find(p => p.id === buyProductId);
-      const fornecedor = fornecedores.find(f => f.id === buySupplierId);
+      const resumo = validItems
+        .map((it) => {
+          const p = produtos.find((pp) => pp.id === it.produto_id);
+          return `${it.kg}kg ${p?.nome ?? "—"}`;
+        })
+        .join(", ");
 
       logActivity({
         action: "Compra Registrada",
         entity: "Estoque",
-        entity_id: buyProductId.slice(0, 8),
-        amount: +buyTotal.toFixed(2),
-        description: `Compra de ${kg}kg de ${produto?.nome ?? "—"} (${produto?.sku ?? "—"}) do fornecedor ${fornecedor?.nome ?? "—"} — ${formatBRL(buyTotal)}`,
+        entity_id: validItems[0].produto_id.slice(0, 8),
+        amount: total,
+        description: `Compra (${validItems.length} ${validItems.length === 1 ? "item" : "itens"}) do fornecedor ${fornecedor?.nome ?? "—"} — ${resumo} — ${formatBRL(total)}`,
         peixaria_id: peixariaId,
       });
 
-      toast({ title: "Compra registada!", description: `${kg}kg adicionado ao estoque — ${formatBRL(buyTotal)}` });
-      setBuyProductId(""); setBuySupplierId(""); setBuyKg(""); setBuyPriceKg(""); setBuyPayment("avista"); setBuyEntrada(""); setBuyOpen(false);
+      toast({
+        title: "Compra registada!",
+        description: `${validItems.length} ${validItems.length === 1 ? "item adicionado" : "itens adicionados"} ao estoque — ${formatBRL(total)}`,
+      });
+      resetBuy();
+      setBuyOpen(false);
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
     } finally {
