@@ -39,11 +39,11 @@ export function DashboardPage({ onNavigateUsers, onNavigateLogs }: DashboardPage
   const today = now.toISOString().slice(0, 10);
   const monthPrefix = now.toISOString().slice(0, 7);
 
-  const filteredSales = vendas.filter((s) =>
-    periodo === "dia"
-      ? s.created_at.slice(0, 10) === today
-      : s.created_at.slice(0, 7) === monthPrefix
-  );
+  const inPeriod = (iso: string) =>
+    periodo === "dia" ? iso.slice(0, 10) === today : iso.slice(0, 7) === monthPrefix;
+
+  const filteredSales = vendas.filter((s) => !s.cancelado && inPeriod(s.created_at));
+  const cancelledSales = vendas.filter((s) => s.cancelado && inPeriod(s.created_at));
   const totalVendas = filteredSales.reduce((acc, s) => acc + Number(s.valor_total), 0);
 
   const fetchMargens = useCallback(async () => {
@@ -131,13 +131,10 @@ export function DashboardPage({ onNavigateUsers, onNavigateLogs }: DashboardPage
   // Build product map for SKU lookup
   const produtoMap = new Map(produtos.map((p) => [p.id, p]));
 
-  // Combine vendas + pedidos atendidos for "Últimas Vendas"
+  // Combine vendas + pedidos atendidos for "Últimas Vendas" (incluindo cancelados)
   const fulfilledOrders = pedidos
     .filter((p) => p.status === "atendido")
-    .filter((p) => {
-      const d = p.fulfilled_at || p.created_at;
-      return periodo === "dia" ? d.slice(0, 10) === today : d.slice(0, 7) === monthPrefix;
-    })
+    .filter((p) => inPeriod(p.fulfilled_at || p.created_at))
     .flatMap((p) =>
       (p.itens ?? []).map((item) => ({
         id: `${p.id}-${item.produto_id}`,
@@ -145,19 +142,18 @@ export function DashboardPage({ onNavigateUsers, onNavigateLogs }: DashboardPage
         kg: item.kg,
         valor_total: item.kg * item.preco_kg,
         created_at: p.fulfilled_at || p.created_at,
+        cancelado: !!p.cancelado,
       }))
     );
 
-  const salesEntries = filteredSales.flatMap((s) => {
-    // Use itens_venda if available via the venda's produto_id
-    return [{
-      id: s.id,
-      produto_id: s.produto_id,
-      kg: Number(s.kg),
-      valor_total: Number(s.valor_total),
-      created_at: s.created_at,
-    }];
-  });
+  const salesEntries = [...filteredSales, ...cancelledSales].map((s) => ({
+    id: s.id,
+    produto_id: s.produto_id,
+    kg: Number(s.kg),
+    valor_total: Number(s.valor_total),
+    created_at: s.created_at,
+    cancelado: !!s.cancelado,
+  }));
 
   const allEntries = [...salesEntries, ...fulfilledOrders]
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -241,9 +237,15 @@ export function DashboardPage({ onNavigateUsers, onNavigateLogs }: DashboardPage
               const prod = produtoMap.get(entry.produto_id);
               return (
                 <div key={entry.id} className="flex items-center justify-between text-sm py-2 border-b border-border last:border-0">
-                  <span className="font-medium text-foreground truncate max-w-[45%]">{prod?.sku ?? "—"} - {prod?.nome ?? ""}</span>
-                  <span className="text-muted-foreground">{entry.kg}kg</span>
-                  <span className="font-semibold text-foreground">{formatBRL(entry.valor_total)}</span>
+                  <span className={`font-medium truncate max-w-[45%] ${entry.cancelado ? "text-muted-foreground line-through" : "text-foreground"}`}>
+                    {prod?.sku ?? "—"} - {prod?.nome ?? ""}
+                  </span>
+                  <span className={`${entry.cancelado ? "text-muted-foreground line-through" : "text-muted-foreground"}`}>{entry.kg}kg</span>
+                  {entry.cancelado ? (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-destructive text-destructive-foreground">CANCELADA</span>
+                  ) : (
+                    <span className="font-semibold text-foreground">{formatBRL(entry.valor_total)}</span>
+                  )}
                 </div>
               );
             })}
