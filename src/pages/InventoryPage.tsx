@@ -269,9 +269,19 @@ export function InventoryPage() {
               {buyEntrada && buyTotal > 0 && <p className="text-xs text-muted-foreground mt-1">Restante: {formatBRL(buyTotal - (parseFloat(buyEntrada) || 0))}</p>}
             </div>
           )}
-          <Button variant="default" size="lg" className="w-full" onClick={handleBuy}><ShoppingCart className="w-4 h-4" /> Confirmar Compra</Button>
+          <Button
+            variant="default"
+            size="lg"
+            className={cn("w-full transition-colors", submitting && "bg-muted text-muted-foreground hover:bg-muted cursor-not-allowed")}
+            onClick={handleBuy}
+            disabled={submitting}
+          >
+            <ShoppingCart className="w-4 h-4" /> {submitting ? "Processando..." : "Confirmar Compra"}
+          </Button>
         </div>
       </SlideUpModal>
+
+      <PurchaseHistoryModal open={historyOpen} onOpenChange={setHistoryOpen} />
     </div>
   );
 }
