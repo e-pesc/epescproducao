@@ -500,7 +500,36 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
         </div>
         <div>
           <Label>Valor da Mensalidade (R$)</Label>
-          <Input type="number" min="0" step="0.01" value={mensalidade} onChange={(e) => setMensalidade(e.target.value)} placeholder="0.00" className="rounded-2xl h-12" />
+          <Input type="number" min="0" step="0.01" value={mensalidade} onChange={(e) => setMensalidade(e.target.value)} placeholder={MENSALIDADE_BASE.toFixed(2)} className="rounded-2xl h-12" />
+          <p className="text-[11px] text-muted-foreground mt-1">Padrão: R$ {MENSALIDADE_BASE.toFixed(2)}. Valores acima geram comissão para o Root negociador.</p>
+        </div>
+
+        <div className="rounded-2xl border border-border p-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="text-sm">Venda Negociada</Label>
+              <p className="text-[11px] text-muted-foreground">Atribuir comissão a um usuário Root</p>
+            </div>
+            <input
+              type="checkbox"
+              checked={vendaNegociada}
+              onChange={(e) => { setVendaNegociada(e.target.checked); if (!e.target.checked) setVendedorRootId(""); }}
+              className="w-5 h-5 accent-primary"
+            />
+          </div>
+          {vendaNegociada && (
+            <div>
+              <Label>Usuário Root (vendedor)</Label>
+              <Select value={vendedorRootId} onValueChange={setVendedorRootId}>
+                <SelectTrigger className="rounded-2xl h-12"><SelectValue placeholder="Selecione o vendedor Root" /></SelectTrigger>
+                <SelectContent>
+                  {rootUsersList.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         {editPeixaria && (
