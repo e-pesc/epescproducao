@@ -5,10 +5,10 @@ import { logActivity } from "@/lib/logActivity";
 
 export interface DividaCompra {
   id: string;
-  fornecedor_id: string;
-  produto_id: string;
-  kg: number;
-  preco_kg: number;
+  fornecedor_id: string | null;
+  produto_id: string | null;
+  kg: number | null;
+  preco_kg: number | null;
   valor_total: number;
   valor_pago: number;
   quitado: boolean;
@@ -17,17 +17,22 @@ export interface DividaCompra {
   cancelado_motivo?: string | null;
   cancelado_at?: string | null;
   cancelado_por?: string | null;
+  descricao?: string | null;
+  recorrente?: boolean;
+  mes_referencia?: string | null;
+  vencimento?: string | null;
 }
 
 export interface PagamentoSaida {
   id: string;
   divida_id: string | null;
-  fornecedor_id: string;
+  fornecedor_id: string | null;
   valor: number;
   tipo: string;
   created_at: string;
   cancelado?: boolean;
   cancelado_at?: string | null;
+  descricao?: string | null;
 }
 
 export interface PagamentoEntrada {
