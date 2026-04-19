@@ -152,6 +152,10 @@ export type Database = {
       }
       dividas_compra: {
         Row: {
+          cancelado: boolean
+          cancelado_at: string | null
+          cancelado_motivo: string | null
+          cancelado_por: string | null
           created_at: string
           fornecedor_id: string
           id: string
@@ -164,6 +168,10 @@ export type Database = {
           valor_total: number
         }
         Insert: {
+          cancelado?: boolean
+          cancelado_at?: string | null
+          cancelado_motivo?: string | null
+          cancelado_por?: string | null
           created_at?: string
           fornecedor_id: string
           id?: string
@@ -176,6 +184,10 @@ export type Database = {
           valor_total: number
         }
         Update: {
+          cancelado?: boolean
+          cancelado_at?: string | null
+          cancelado_motivo?: string | null
+          cancelado_por?: string | null
           created_at?: string
           fornecedor_id?: string
           id?: string
@@ -522,6 +534,8 @@ export type Database = {
       }
       pagamentos_saida: {
         Row: {
+          cancelado: boolean
+          cancelado_at: string | null
           created_at: string
           divida_id: string | null
           fornecedor_id: string
@@ -531,6 +545,8 @@ export type Database = {
           valor: number
         }
         Insert: {
+          cancelado?: boolean
+          cancelado_at?: string | null
           created_at?: string
           divida_id?: string | null
           fornecedor_id: string
@@ -540,6 +556,8 @@ export type Database = {
           valor: number
         }
         Update: {
+          cancelado?: boolean
+          cancelado_at?: string | null
           created_at?: string
           divida_id?: string | null
           fornecedor_id?: string
