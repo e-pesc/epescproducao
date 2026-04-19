@@ -33,7 +33,7 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
   const [month, setMonth] = useState(now.getMonth());
   const [year, setYear] = useState(now.getFullYear());
   const [search, setSearch] = useState("");
-  const [cancelTarget, setCancelTarget] = useState<DividaCompra | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<DividaCompra[] | null>(null);
 
   useEffect(() => {
     if (open) refetch();
