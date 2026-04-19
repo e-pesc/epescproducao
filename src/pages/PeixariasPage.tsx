@@ -332,7 +332,10 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
   const [endereco, setEndereco] = useState("");
   const [cidade, setCidade] = useState("");
   const [diaPagamento, setDiaPagamento] = useState("10");
-  const [mensalidade, setMensalidade] = useState("0");
+  const [mensalidade, setMensalidade] = useState(String(MENSALIDADE_BASE));
+  const [vendaNegociada, setVendaNegociada] = useState(false);
+  const [vendedorRootId, setVendedorRootId] = useState<string>("");
+  const [rootUsersList, setRootUsersList] = useState<AppUser[]>([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
