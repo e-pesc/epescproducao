@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { SlideUpModal } from "@/components/SlideUpModal";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Power, Store, Search, CheckCircle2, Clock, MessageCircle, Users, KeyRound } from "lucide-react";
+import { Plus, Pencil, Trash2, Power, Store, Search, CheckCircle2, Clock, MessageCircle, Users, KeyRound, ChevronLeft, ChevronRight, Award } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -29,6 +29,7 @@ interface Peixaria {
   mensalidade: number;
   ativo: boolean;
   created_at: string;
+  vendedor_root_id: string | null;
 }
 
 interface PagamentoMensalidade {
@@ -42,6 +43,8 @@ interface PagamentoMensalidade {
 type AppUser = Tables<"app_users">;
 
 const PAYMENT_DAYS = ["5", "10", "15"] as const;
+const MENSALIDADE_BASE = 59.9;
+const MONTH_NAMES_FULL = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 function formatCpfCnpj(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 14);
@@ -72,34 +75,42 @@ function formatMonthLabel(ref: string): string {
 export function PeixariasPage() {
   const [peixarias, setPeixarias] = useState<Peixaria[]>([]);
   const [pagamentos, setPagamentos] = useState<PagamentoMensalidade[]>([]);
+  const [rootUsers, setRootUsers] = useState<AppUser[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editPeixaria, setEditPeixaria] = useState<Peixaria | undefined>();
   const [deleteTarget, setDeleteTarget] = useState<Peixaria | null>(null);
   const [confirmTarget, setConfirmTarget] = useState<Peixaria | null>(null);
   const [search, setSearch] = useState("");
+
+  const now = new Date();
+  const [filterMonth, setFilterMonth] = useState(now.getMonth());
+  const [filterYear, setFilterYear] = useState(now.getFullYear());
+  const filterRef = `${filterYear}-${String(filterMonth + 1).padStart(2, "0")}`;
+
   const { toast } = useToast();
 
-  const mesAtual = getCurrentMonthRef();
-
   const fetchAll = async () => {
-    const [{ data: pData }, { data: pgData }] = await Promise.all([
+    const [{ data: pData }, { data: pgData }, { data: usersData }] = await Promise.all([
       supabase.from("peixarias").select("*").order("razao_social"),
-      supabase.from("pagamentos_mensalidade").select("*").eq("mes_referencia", mesAtual),
+      supabase.from("pagamentos_mensalidade").select("*"),
+      supabase.from("app_users").select("*").eq("role", "root"),
     ]);
     setPeixarias((pData as Peixaria[] | null) ?? []);
     setPagamentos((pgData as PagamentoMensalidade[] | null) ?? []);
+    setRootUsers((usersData as AppUser[] | null) ?? []);
   };
 
   useEffect(() => { fetchAll(); }, []);
 
-  const isPago = (peixariaId: string) => pagamentos.some(p => p.peixaria_id === peixariaId && p.confirmado);
+  const isPagoMonth = (peixariaId: string, ref: string) =>
+    pagamentos.some(p => p.peixaria_id === peixariaId && p.mes_referencia === ref && p.confirmado);
 
   const handleConfirmPayment = async (p: Peixaria) => {
-    const existing = pagamentos.find(pg => pg.peixaria_id === p.id);
+    const existing = pagamentos.find(pg => pg.peixaria_id === p.id && pg.mes_referencia === filterRef);
     if (existing) {
       await supabase.from("pagamentos_mensalidade").update({ confirmado: true, confirmado_at: new Date().toISOString() }).eq("id", existing.id);
     } else {
-      await supabase.from("pagamentos_mensalidade").insert({ peixaria_id: p.id, mes_referencia: mesAtual, confirmado: true, confirmado_at: new Date().toISOString() });
+      await supabase.from("pagamentos_mensalidade").insert({ peixaria_id: p.id, mes_referencia: filterRef, confirmado: true, confirmado_at: new Date().toISOString() });
     }
     toast({ title: "Pagamento confirmado!" });
     setConfirmTarget(null);
@@ -119,6 +130,23 @@ export function PeixariasPage() {
     fetchAll();
   };
 
+  const prevMonth = () => { if (filterMonth === 0) { setFilterMonth(11); setFilterYear((y) => y - 1); } else setFilterMonth((m) => m - 1); };
+  const nextMonth = () => { if (filterMonth === 11) { setFilterMonth(0); setFilterYear((y) => y + 1); } else setFilterMonth((m) => m + 1); };
+
+  // Commission per Root user (no mês filtrado)
+  const commissions = rootUsers.map((u) => {
+    const peixariasDoRoot = peixarias.filter((p) => p.vendedor_root_id === u.id);
+    let total = 0;
+    let confirmed = 0;
+    peixariasDoRoot.forEach((p) => {
+      const extra = Math.max(0, Number(p.mensalidade ?? 0) - MENSALIDADE_BASE);
+      if (extra <= 0) return;
+      total += extra;
+      if (isPagoMonth(p.id, filterRef)) confirmed += extra;
+    });
+    return { user: u, total, confirmed, count: peixariasDoRoot.length };
+  }).filter((c) => c.count > 0);
+
   const q = search.toLowerCase();
   const filtered = peixarias.filter(p =>
     !q || p.razao_social.toLowerCase().includes(q) || p.proprietario.toLowerCase().includes(q) || p.cidade.toLowerCase().includes(q)
@@ -126,13 +154,44 @@ export function PeixariasPage() {
 
   return (
     <div className="space-y-4 pb-24">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <Store className="w-6 h-6 text-secondary" />
           <h1 className="text-xl font-bold text-foreground">Painel Root</h1>
         </div>
-        <SettingsMenu />
+        <div className="flex items-center gap-2">
+          <div className="flex items-center rounded-2xl bg-muted px-1 py-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={prevMonth}><ChevronLeft className="w-4 h-4" /></Button>
+            <span className="text-xs font-semibold text-foreground whitespace-nowrap px-1">{MONTH_NAMES_FULL[filterMonth].slice(0, 3)} {filterYear}</span>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={nextMonth}><ChevronRight className="w-4 h-4" /></Button>
+          </div>
+          <SettingsMenu />
+        </div>
       </div>
+
+      {commissions.length > 0 && (
+        <div>
+          <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1"><Award className="w-3.5 h-3.5" /> Comissão por usuário Root — {MONTH_NAMES_FULL[filterMonth]}/{filterYear}</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {commissions.map((c) => (
+              <div key={c.user.id} className="rounded-3xl bg-card p-3 shadow-sm border-l-4 border-l-primary">
+                <p className="font-semibold text-sm text-foreground truncate">{c.user.name}</p>
+                <p className="text-[10px] text-muted-foreground">{c.count} peixaria(s) negociada(s)</p>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase">Total</p>
+                    <p className="text-sm font-bold text-foreground">R$ {c.total.toFixed(2)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase">Confirmado</p>
+                    <p className="text-sm font-bold text-fish-treated">R$ {c.confirmed.toFixed(2)}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <Tabs defaultValue="peixarias" className="w-full">
         <TabsList className="w-full rounded-2xl grid grid-cols-2">
@@ -151,11 +210,12 @@ export function PeixariasPage() {
             </Button>
           </div>
 
-          <p className="text-xs text-muted-foreground text-center">Referência: {formatMonthLabel(mesAtual)}</p>
+          <p className="text-xs text-muted-foreground text-center">Status de pagamento: {MONTH_NAMES_FULL[filterMonth]}/{filterYear}</p>
 
           <div className="space-y-2">
             {filtered.map((p) => {
-              const pago = isPago(p.id);
+              const pago = isPagoMonth(p.id, filterRef);
+              const vendedor = p.vendedor_root_id ? rootUsers.find((u) => u.id === p.vendedor_root_id) : null;
               return (
                 <div key={p.id} className={cn("rounded-3xl bg-card p-4 shadow-sm", !p.ativo && "opacity-50")}>
                   <div className="flex items-start justify-between">
@@ -179,6 +239,9 @@ export function PeixariasPage() {
                       <p className="text-xs text-muted-foreground">
                         Pgto dia {p.dia_pagamento} • Mensalidade: R$ {(p.mensalidade ?? 0).toFixed(2)}
                       </p>
+                      {vendedor && (
+                        <p className="text-xs text-primary font-medium">Venda: {vendedor.name}</p>
+                      )}
                       <p className="text-xs text-muted-foreground">{p.ativo ? "Ativa" : "Inativa"}</p>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
@@ -243,7 +306,7 @@ export function PeixariasPage() {
             <AlertDialogTitle>Confirmar pagamento?</AlertDialogTitle>
             <AlertDialogDescription>
               Confirmar o recebimento da mensalidade de <strong>R$ {(confirmTarget?.mensalidade ?? 0).toFixed(2)}</strong> de{" "}
-              <strong>{confirmTarget?.razao_social}</strong> referente a {formatMonthLabel(mesAtual)}?
+              <strong>{confirmTarget?.razao_social}</strong> referente a {formatMonthLabel(filterRef)}?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -269,7 +332,10 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
   const [endereco, setEndereco] = useState("");
   const [cidade, setCidade] = useState("");
   const [diaPagamento, setDiaPagamento] = useState("10");
-  const [mensalidade, setMensalidade] = useState("0");
+  const [mensalidade, setMensalidade] = useState(String(MENSALIDADE_BASE));
+  const [vendaNegociada, setVendaNegociada] = useState(false);
+  const [vendedorRootId, setVendedorRootId] = useState<string>("");
+  const [rootUsersList, setRootUsersList] = useState<AppUser[]>([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -290,9 +356,16 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
       setCidade(editPeixaria?.cidade ?? "");
       const dia = String(editPeixaria?.dia_pagamento ?? 10);
       setDiaPagamento(PAYMENT_DAYS.includes(dia as typeof PAYMENT_DAYS[number]) ? dia : "10");
-      setMensalidade(String(editPeixaria?.mensalidade ?? 0));
+      const m = editPeixaria?.mensalidade ?? MENSALIDADE_BASE;
+      setMensalidade(String(m));
+      setVendaNegociada(!!editPeixaria?.vendedor_root_id || (m > MENSALIDADE_BASE));
+      setVendedorRootId(editPeixaria?.vendedor_root_id ?? "");
       setEmail("");
       setPassword("");
+
+      // Carrega lista de Roots para o seletor
+      supabase.from("app_users").select("*").eq("role", "root").eq("active", true)
+        .then(({ data }) => setRootUsersList((data as AppUser[] | null) ?? []));
       setAdminEmail(null);
       setAdminUserId(null);
       setResetPassword("");
@@ -346,7 +419,8 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
       endereco: endereco.trim(),
       cidade: cidade.trim(),
       dia_pagamento: parseInt(diaPagamento) || 10,
-      mensalidade: parseFloat(mensalidade) || 0,
+      mensalidade: parseFloat(mensalidade) || MENSALIDADE_BASE,
+      vendedor_root_id: vendaNegociada && vendedorRootId ? vendedorRootId : null,
     };
 
     if (editPeixaria) {
@@ -426,7 +500,36 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
         </div>
         <div>
           <Label>Valor da Mensalidade (R$)</Label>
-          <Input type="number" min="0" step="0.01" value={mensalidade} onChange={(e) => setMensalidade(e.target.value)} placeholder="0.00" className="rounded-2xl h-12" />
+          <Input type="number" min="0" step="0.01" value={mensalidade} onChange={(e) => setMensalidade(e.target.value)} placeholder={MENSALIDADE_BASE.toFixed(2)} className="rounded-2xl h-12" />
+          <p className="text-[11px] text-muted-foreground mt-1">Padrão: R$ {MENSALIDADE_BASE.toFixed(2)}. Valores acima geram comissão para o Root negociador.</p>
+        </div>
+
+        <div className="rounded-2xl border border-border p-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="text-sm">Venda Negociada</Label>
+              <p className="text-[11px] text-muted-foreground">Atribuir comissão a um usuário Root</p>
+            </div>
+            <input
+              type="checkbox"
+              checked={vendaNegociada}
+              onChange={(e) => { setVendaNegociada(e.target.checked); if (!e.target.checked) setVendedorRootId(""); }}
+              className="w-5 h-5 accent-primary"
+            />
+          </div>
+          {vendaNegociada && (
+            <div>
+              <Label>Usuário Root (vendedor)</Label>
+              <Select value={vendedorRootId} onValueChange={setVendedorRootId}>
+                <SelectTrigger className="rounded-2xl h-12"><SelectValue placeholder="Selecione o vendedor Root" /></SelectTrigger>
+                <SelectContent>
+                  {rootUsersList.map((u) => (
+                    <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
 
         {editPeixaria && (

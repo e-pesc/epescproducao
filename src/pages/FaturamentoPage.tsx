@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SlideUpModal } from "@/components/SlideUpModal";
-import { Wallet, Calendar, ArrowDownCircle, FileText, ChevronLeft, ChevronRight } from "lucide-react";
+import { Wallet, Calendar, ArrowDownCircle, FileText, ChevronLeft, ChevronRight, Plus, Receipt } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { formatBRL } from "@/lib/format";
@@ -211,15 +212,24 @@ function TabAPagar({ filterMonth, filterYear }: { filterMonth: number; filterYea
       {openDebts.length === 0 ? <EmptyState text="Nenhuma dívida pendente com fornecedores" /> : (
         <div className="space-y-3">
           {openDebts.map((debt) => {
-            const supplier = fornecedores.find((s) => s.id === debt.fornecedor_id);
-            const product = produtos.find((p) => p.id === debt.produto_id);
+            const supplier = debt.fornecedor_id ? fornecedores.find((s) => s.id === debt.fornecedor_id) : null;
+            const product = debt.produto_id ? produtos.find((p) => p.id === debt.produto_id) : null;
             const remaining = +(Number(debt.valor_total) - Number(debt.valor_pago)).toFixed(2);
+            const isDespesa = !debt.fornecedor_id && !!debt.descricao;
             return (
               <div key={debt.id} className="rounded-3xl bg-card p-4 shadow-sm border-l-4 border-l-destructive">
                 <div className="flex items-start justify-between mb-2">
                   <div>
-                    <h3 className="font-bold text-foreground text-base">{supplier?.nome || "—"}</h3>
-                    <p className="text-xs text-muted-foreground">{product?.nome} ({product?.sku})</p>
+                    <h3 className="font-bold text-foreground text-base">
+                      {isDespesa ? debt.descricao : (supplier?.nome || "—")}
+                    </h3>
+                    {isDespesa ? (
+                      <p className="text-xs text-muted-foreground">
+                        Despesa{debt.recorrente ? " • Recorrente" : ""}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">{product?.nome} ({product?.sku})</p>
+                    )}
                   </div>
                   <div className="text-right">
                     <span className="text-lg font-bold text-destructive">{formatBRL(remaining)}</span>
@@ -227,8 +237,7 @@ function TabAPagar({ filterMonth, filterYear }: { filterMonth: number; filterYea
                   </div>
                 </div>
                 <div className="flex items-center gap-3 text-xs text-muted-foreground mb-3">
-                  <span>{Number(debt.kg)} kg</span>
-                  <span>{formatBRL(Number(debt.preco_kg))}/kg</span>
+                  {!isDespesa && <><span>{Number(debt.kg)} kg</span><span>{formatBRL(Number(debt.preco_kg))}/kg</span></>}
                   <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(debt.created_at).toLocaleDateString("pt-BR")}</span>
                 </div>
                 <Button size="sm" className="w-full rounded-2xl" onClick={() => setPayingDebt(debt)}><Wallet className="w-4 h-4" /> Quitar</Button>
@@ -276,36 +285,117 @@ function TabAReceber() {
   );
 }
 
+// ─── Expense Modal ───
+function ExpenseModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const { addDespesa } = useBilling();
+  const { toast } = useToast();
+  const [descricao, setDescricao] = useState("");
+  const [valor, setValor] = useState("");
+  const [avista, setAvista] = useState(true);
+  const [recorrente, setRecorrente] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const reset = () => { setDescricao(""); setValor(""); setAvista(true); setRecorrente(false); };
+
+  const handleSave = async () => {
+    const v = parseFloat(valor) || 0;
+    if (!descricao.trim()) { toast({ title: "Informe a descrição", variant: "destructive" }); return; }
+    if (v <= 0) { toast({ title: "Informe um valor válido", variant: "destructive" }); return; }
+    try {
+      setSubmitting(true);
+      await addDespesa({ descricao: descricao.trim(), valor: v, avista, recorrente: !avista && recorrente });
+      toast({
+        title: "Despesa lançada!",
+        description: avista
+          ? `${formatBRL(v)} em Saídas`
+          : `${formatBRL(v)} em A Pagar${recorrente ? " (12 meses)" : ""}`,
+      });
+      reset();
+      onOpenChange(false);
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <SlideUpModal open={open} onOpenChange={onOpenChange} title="Lançar Despesa">
+      <div className="space-y-4 mt-2">
+        <div>
+          <Label>Descrição</Label>
+          <Input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Ex: Conta de luz" className="rounded-2xl h-12" />
+        </div>
+        <div>
+          <Label>Valor (R$)</Label>
+          <Input type="number" step="0.01" min="0" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0.00" className="rounded-2xl h-12 text-lg" />
+        </div>
+        <div className="flex items-center justify-between rounded-2xl bg-muted px-4 py-3">
+          <div>
+            <Label className="text-sm">À Vista</Label>
+            <p className="text-[11px] text-muted-foreground">Lança direto em Saídas</p>
+          </div>
+          <Switch checked={avista} onCheckedChange={(v) => { setAvista(v); if (v) setRecorrente(false); }} />
+        </div>
+        {!avista && (
+          <div className="flex items-center justify-between rounded-2xl bg-muted px-4 py-3">
+            <div>
+              <Label className="text-sm">Recorrente (12 meses)</Label>
+              <p className="text-[11px] text-muted-foreground">Replica em todos os meses futuros</p>
+            </div>
+            <Switch checked={recorrente} onCheckedChange={setRecorrente} />
+          </div>
+        )}
+        {!avista && (
+          <p className="text-xs text-muted-foreground text-center">Será lançado em <strong>A Pagar</strong></p>
+        )}
+        <Button size="lg" className="w-full rounded-2xl" onClick={handleSave} disabled={submitting}>
+          {submitting ? "Salvando..." : "Lançar Despesa"}
+        </Button>
+      </div>
+    </SlideUpModal>
+  );
+}
+
 // ─── Tab: Saídas ───
 function TabSaidas({ filterMonth, filterYear }: { filterMonth: number; filterYear: number }) {
   const { pagamentosSaida, loading } = useBilling();
   const { fornecedores } = useFornecedores();
+  const [expenseOpen, setExpenseOpen] = useState(false);
 
   const sorted = useMemo(() => pagamentosSaida
     .filter((p) => { const d = new Date(p.created_at); return d.getMonth() === filterMonth && d.getFullYear() === filterYear; })
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()), [pagamentosSaida, filterMonth, filterYear]);
 
-  if (loading) return <ListSkeleton />;
-
-  return sorted.length === 0 ? <EmptyState text="Nenhum pagamento registrado" /> : (
+  return (
     <div className="space-y-3">
-      {sorted.map((p) => {
-        const supplier = fornecedores.find((s) => s.id === p.fornecedor_id);
-        return (
-          <div key={p.id} className="rounded-3xl bg-card p-4 shadow-sm border-l-4 border-l-destructive/50">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="font-semibold text-foreground text-sm">{supplier?.nome || "—"}</h3>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5"><Calendar className="w-3 h-3" /><span>{new Date(p.created_at).toLocaleDateString("pt-BR")}</span></div>
+      <Button onClick={() => setExpenseOpen(true)} className="w-full rounded-2xl gap-2" variant="outline">
+        <Receipt className="w-4 h-4" /> Lançar Despesa
+      </Button>
+      {loading ? <ListSkeleton /> : sorted.length === 0 ? <EmptyState text="Nenhum pagamento registrado" /> : (
+        <div className="space-y-3">
+          {sorted.map((p) => {
+            const supplier = p.fornecedor_id ? fornecedores.find((s) => s.id === p.fornecedor_id) : null;
+            const label = supplier?.nome || p.descricao || "Despesa";
+            return (
+              <div key={p.id} className="rounded-3xl bg-card p-4 shadow-sm border-l-4 border-l-destructive/50">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="font-semibold text-foreground text-sm">{label}</h3>
+                    {!supplier && p.descricao && <p className="text-[10px] text-muted-foreground">Despesa avulsa</p>}
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5"><Calendar className="w-3 h-3" /><span>{new Date(p.created_at).toLocaleDateString("pt-BR")}</span></div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-base font-bold text-destructive">- {formatBRL(Number(p.valor))}</span>
+                    <Badge className={cn("ml-2 text-[10px]", p.tipo === "total" ? "bg-primary" : "bg-amber-500")}>{p.tipo === "total" ? "TOTAL" : "PARCIAL"}</Badge>
+                  </div>
+                </div>
               </div>
-              <div className="text-right">
-                <span className="text-base font-bold text-destructive">- {formatBRL(Number(p.valor))}</span>
-                <Badge className={cn("ml-2 text-[10px]", p.tipo === "total" ? "bg-primary" : "bg-amber-500")}>{p.tipo === "total" ? "TOTAL" : "PARCIAL"}</Badge>
-              </div>
-            </div>
-          </div>
-        );
-      })}
+            );
+          })}
+        </div>
+      )}
+      <ExpenseModal open={expenseOpen} onOpenChange={setExpenseOpen} />
     </div>
   );
 }

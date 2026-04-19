@@ -5,10 +5,10 @@ import { logActivity } from "@/lib/logActivity";
 
 export interface DividaCompra {
   id: string;
-  fornecedor_id: string;
-  produto_id: string;
-  kg: number;
-  preco_kg: number;
+  fornecedor_id: string | null;
+  produto_id: string | null;
+  kg: number | null;
+  preco_kg: number | null;
   valor_total: number;
   valor_pago: number;
   quitado: boolean;
@@ -17,17 +17,22 @@ export interface DividaCompra {
   cancelado_motivo?: string | null;
   cancelado_at?: string | null;
   cancelado_por?: string | null;
+  descricao?: string | null;
+  recorrente?: boolean;
+  mes_referencia?: string | null;
+  vencimento?: string | null;
 }
 
 export interface PagamentoSaida {
   id: string;
   divida_id: string | null;
-  fornecedor_id: string;
+  fornecedor_id: string | null;
   valor: number;
   tipo: string;
   created_at: string;
   cancelado?: boolean;
   cancelado_at?: string | null;
+  descricao?: string | null;
 }
 
 export interface PagamentoEntrada {
@@ -120,6 +125,7 @@ export function useBilling() {
       fornecedor_id: divida.fornecedor_id,
       valor: amount,
       tipo,
+      descricao: divida.descricao ?? null,
       peixaria_id: peixariaId,
     });
 
@@ -128,9 +134,74 @@ export function useBilling() {
       entity: "Dívida",
       entity_id: dividaId.slice(0, 8),
       amount: amount,
-      description: `Pagamento ${tipo === "total" ? "total" : "parcial"} de dívida - R$${amount.toFixed(2)}`,
+      description: `Pagamento ${tipo === "total" ? "total" : "parcial"} ${divida.descricao ? `(${divida.descricao}) ` : ""}- R$${amount.toFixed(2)}`,
       peixaria_id: peixariaId,
     });
+
+    await invalidateAll();
+  };
+
+  // ─── Despesa avulsa (sem fornecedor) ───
+  const addDespesa = async (d: { descricao: string; valor: number; avista: boolean; recorrente: boolean }) => {
+    const valor = +d.valor.toFixed(2);
+    const now = new Date();
+    const baseMonth = now.getMonth();
+    const baseYear = now.getFullYear();
+    const refOf = (offset: number) => {
+      const m = baseMonth + offset;
+      const y = baseYear + Math.floor(m / 12);
+      const mm = ((m % 12) + 12) % 12;
+      return `${y}-${String(mm + 1).padStart(2, "0")}`;
+    };
+
+    if (d.avista) {
+      // Lança direto em saídas
+      await supabase.from("pagamentos_saida").insert({
+        fornecedor_id: null,
+        valor,
+        tipo: "total",
+        descricao: d.descricao,
+        peixaria_id: peixariaId,
+      });
+      logActivity({
+        action: "Despesa Lançada",
+        entity: "Despesa",
+        entity_id: d.descricao.slice(0, 8),
+        amount: valor,
+        description: `Despesa à vista — ${d.descricao}`,
+        peixaria_id: peixariaId,
+      });
+    } else {
+      // Lança em A Pagar (mês atual). Se recorrente, cria 12 meses.
+      const months = d.recorrente ? 12 : 1;
+      const rows = [];
+      for (let i = 0; i < months; i++) {
+        rows.push({
+          fornecedor_id: null,
+          produto_id: null,
+          kg: null,
+          preco_kg: null,
+          valor_total: valor,
+          valor_pago: 0,
+          quitado: false,
+          descricao: d.descricao,
+          recorrente: d.recorrente,
+          mes_referencia: refOf(i),
+          peixaria_id: peixariaId,
+          // Force created_at no mês de referência (dia 1) para que filtros mensais funcionem
+          created_at: new Date(baseYear, baseMonth + i, Math.min(now.getDate(), 28)).toISOString(),
+        });
+      }
+      await supabase.from("dividas_compra").insert(rows);
+      logActivity({
+        action: "Despesa Lançada",
+        entity: "Despesa",
+        entity_id: d.descricao.slice(0, 8),
+        amount: valor,
+        description: `Despesa a prazo${d.recorrente ? " (recorrente 12 meses)" : ""} — ${d.descricao}`,
+        peixaria_id: peixariaId,
+      });
+    }
 
     await invalidateAll();
   };
@@ -194,19 +265,23 @@ export function useBilling() {
     const { data: { user } } = await supabase.auth.getUser();
     const now = new Date().toISOString();
 
-    // 1) Restituir estoque (subtrair os kg que foram comprados) + log de movimentação
-    const { data: produto } = await supabase.from("produtos").select("estoque_kg, nome").eq("id", divida.produto_id).single();
-    if (produto) {
-      const novoEstoque = +(Number(produto.estoque_kg) - Number(divida.kg)).toFixed(3);
-      if (novoEstoque < 0) throw new Error(`Estoque insuficiente para estornar (disponível: ${produto.estoque_kg}kg)`);
-      await supabase.from("produtos").update({ estoque_kg: novoEstoque }).eq("id", divida.produto_id);
-      await supabase.from("movimentacoes_estoque").insert({
-        produto_id: divida.produto_id,
-        tipo: "outros",
-        kg: Number(divida.kg),
-        observacao: `Estorno por cancelamento de compra — ${motivo}`,
-        peixaria_id: peixariaId,
-      });
+    // 1) Restituir estoque apenas se for compra de produto (não despesa avulsa)
+    let produto: { estoque_kg: number; nome: string } | null = null;
+    if (divida.produto_id && divida.kg) {
+      const { data } = await supabase.from("produtos").select("estoque_kg, nome").eq("id", divida.produto_id).single();
+      produto = data as any;
+      if (produto) {
+        const novoEstoque = +(Number(produto.estoque_kg) - Number(divida.kg)).toFixed(3);
+        if (novoEstoque < 0) throw new Error(`Estoque insuficiente para estornar (disponível: ${produto.estoque_kg}kg)`);
+        await supabase.from("produtos").update({ estoque_kg: novoEstoque }).eq("id", divida.produto_id);
+        await supabase.from("movimentacoes_estoque").insert({
+          produto_id: divida.produto_id,
+          tipo: "outros",
+          kg: Number(divida.kg),
+          observacao: `Estorno por cancelamento de compra — ${motivo}`,
+          peixaria_id: peixariaId,
+        });
+      }
     }
 
     // 2) Marcar pagamentos de saída relacionados como cancelados
@@ -236,6 +311,7 @@ export function useBilling() {
   return {
     dividasCompra, pagamentosSaida, pagamentosEntrada, loading,
     addDividaCompra, payDivida, addPagamentoEntrada, addPagamentoSaida, receiveFromClient, cancelDivida,
+    addDespesa,
     refetch: invalidateAll,
   };
 }
