@@ -125,6 +125,7 @@ export function useBilling() {
       fornecedor_id: divida.fornecedor_id,
       valor: amount,
       tipo,
+      descricao: divida.descricao ?? null,
       peixaria_id: peixariaId,
     });
 
@@ -133,9 +134,74 @@ export function useBilling() {
       entity: "Dívida",
       entity_id: dividaId.slice(0, 8),
       amount: amount,
-      description: `Pagamento ${tipo === "total" ? "total" : "parcial"} de dívida - R$${amount.toFixed(2)}`,
+      description: `Pagamento ${tipo === "total" ? "total" : "parcial"} ${divida.descricao ? `(${divida.descricao}) ` : ""}- R$${amount.toFixed(2)}`,
       peixaria_id: peixariaId,
     });
+
+    await invalidateAll();
+  };
+
+  // ─── Despesa avulsa (sem fornecedor) ───
+  const addDespesa = async (d: { descricao: string; valor: number; avista: boolean; recorrente: boolean }) => {
+    const valor = +d.valor.toFixed(2);
+    const now = new Date();
+    const baseMonth = now.getMonth();
+    const baseYear = now.getFullYear();
+    const refOf = (offset: number) => {
+      const m = baseMonth + offset;
+      const y = baseYear + Math.floor(m / 12);
+      const mm = ((m % 12) + 12) % 12;
+      return `${y}-${String(mm + 1).padStart(2, "0")}`;
+    };
+
+    if (d.avista) {
+      // Lança direto em saídas
+      await supabase.from("pagamentos_saida").insert({
+        fornecedor_id: null,
+        valor,
+        tipo: "total",
+        descricao: d.descricao,
+        peixaria_id: peixariaId,
+      });
+      logActivity({
+        action: "Despesa Lançada",
+        entity: "Despesa",
+        entity_id: d.descricao.slice(0, 8),
+        amount: valor,
+        description: `Despesa à vista — ${d.descricao}`,
+        peixaria_id: peixariaId,
+      });
+    } else {
+      // Lança em A Pagar (mês atual). Se recorrente, cria 12 meses.
+      const months = d.recorrente ? 12 : 1;
+      const rows = [];
+      for (let i = 0; i < months; i++) {
+        rows.push({
+          fornecedor_id: null,
+          produto_id: null,
+          kg: null,
+          preco_kg: null,
+          valor_total: valor,
+          valor_pago: 0,
+          quitado: false,
+          descricao: d.descricao,
+          recorrente: d.recorrente,
+          mes_referencia: refOf(i),
+          peixaria_id: peixariaId,
+          // Force created_at no mês de referência (dia 1) para que filtros mensais funcionem
+          created_at: new Date(baseYear, baseMonth + i, Math.min(now.getDate(), 28)).toISOString(),
+        });
+      }
+      await supabase.from("dividas_compra").insert(rows);
+      logActivity({
+        action: "Despesa Lançada",
+        entity: "Despesa",
+        entity_id: d.descricao.slice(0, 8),
+        amount: valor,
+        description: `Despesa a prazo${d.recorrente ? " (recorrente 12 meses)" : ""} — ${d.descricao}`,
+        peixaria_id: peixariaId,
+      });
+    }
 
     await invalidateAll();
   };
