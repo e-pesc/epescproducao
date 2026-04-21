@@ -13,6 +13,7 @@ import { ChevronLeft, ChevronRight, Calendar, History, Search, XCircle, MessageC
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/format";
 import { openWhatsappReceipt } from "@/lib/whatsappReceipt";
+import { usePeixariaInfo } from "@/hooks/usePeixariaInfo";
 
 const MONTH_NAMES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
@@ -26,6 +27,7 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
   const { fornecedores } = useFornecedores();
   const { produtos, refetch: refetchProdutos } = useProdutos();
   const { role } = useAuth();
+  const { nome: peixariaNome } = usePeixariaInfo();
   const { toast } = useToast();
 
   const isAdmin = role === "administrador" || role === "root";
@@ -198,6 +200,7 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
                           }
                           openWhatsappReceipt(f?.whatsapp, {
                             tipo: "Compra",
+                            peixaria: peixariaNome ?? undefined,
                             data: first.created_at,
                             contraparte: f?.nome ?? "Fornecedor",
                             itens: group.map((d) => {
