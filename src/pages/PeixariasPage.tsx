@@ -328,6 +328,8 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
   open: boolean; onOpenChange: (o: boolean) => void; editPeixaria?: Peixaria; onSaved: () => void;
 }) {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isAdminRoot = user?.email?.toLowerCase() === ADMIN_ROOT_EMAIL;
   const [razaoSocial, setRazaoSocial] = useState("");
   const [cpfCnpj, setCpfCnpj] = useState("");
   const [proprietario, setProprietario] = useState("");
