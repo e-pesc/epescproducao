@@ -1,6 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { formatBRL } from "@/lib/format";
+
+const ADMIN_ROOT_EMAIL = "root@epesc.com";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -325,6 +328,8 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
   open: boolean; onOpenChange: (o: boolean) => void; editPeixaria?: Peixaria; onSaved: () => void;
 }) {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const isAdminRoot = user?.email?.toLowerCase() === ADMIN_ROOT_EMAIL;
   const [razaoSocial, setRazaoSocial] = useState("");
   const [cpfCnpj, setCpfCnpj] = useState("");
   const [proprietario, setProprietario] = useState("");
@@ -499,36 +504,70 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
           </Select>
         </div>
         <div>
-          <Label>Valor da Mensalidade (R$)</Label>
-          <Input type="number" min="0" step="0.01" value={mensalidade} onChange={(e) => setMensalidade(e.target.value)} placeholder={MENSALIDADE_BASE.toFixed(2)} className="rounded-2xl h-12" />
-          <p className="text-[11px] text-muted-foreground mt-1">Padrão: R$ {MENSALIDADE_BASE.toFixed(2)}. Valores acima geram comissão para o Root negociador.</p>
+          <Label>Valor da Mensalidade</Label>
+          <Input
+            type="text"
+            value={formatBRL(parseFloat(mensalidade) || MENSALIDADE_BASE)}
+            disabled
+            readOnly
+            className="rounded-2xl h-12 bg-muted"
+          />
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Padrão: {formatBRL(MENSALIDADE_BASE)}.
+            {!isAdminRoot && " Apenas o Admin Root pode editar valores diferentes do padrão."}
+          </p>
         </div>
 
         <div className="rounded-2xl border border-border p-3 space-y-3">
           <div className="flex items-center justify-between">
             <div>
-              <Label className="text-sm">Venda Negociada</Label>
+              <Label className="text-sm">Plano Negociado</Label>
               <p className="text-[11px] text-muted-foreground">Atribuir comissão a um usuário Root</p>
             </div>
             <input
               type="checkbox"
               checked={vendaNegociada}
-              onChange={(e) => { setVendaNegociada(e.target.checked); if (!e.target.checked) setVendedorRootId(""); }}
-              className="w-5 h-5 accent-primary"
+              disabled={!isAdminRoot}
+              onChange={(e) => {
+                setVendaNegociada(e.target.checked);
+                if (!e.target.checked) {
+                  setVendedorRootId("");
+                  setMensalidade(String(MENSALIDADE_BASE));
+                }
+              }}
+              className="w-5 h-5 accent-primary disabled:opacity-50"
             />
           </div>
           {vendaNegociada && (
-            <div>
-              <Label>Usuário Root (vendedor)</Label>
-              <Select value={vendedorRootId} onValueChange={setVendedorRootId}>
-                <SelectTrigger className="rounded-2xl h-12"><SelectValue placeholder="Selecione o vendedor Root" /></SelectTrigger>
-                <SelectContent>
-                  {rootUsersList.map((u) => (
-                    <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <>
+              <div>
+                <Label>Valor Negociado da Mensalidade (R$)</Label>
+                <Input
+                  type="number"
+                  min={MENSALIDADE_BASE}
+                  step="0.01"
+                  value={mensalidade}
+                  disabled={!isAdminRoot}
+                  onChange={(e) => setMensalidade(e.target.value)}
+                  placeholder={MENSALIDADE_BASE.toFixed(2)}
+                  className="rounded-2xl h-12"
+                />
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Valores acima de {formatBRL(MENSALIDADE_BASE)} geram comissão para o Root negociador.
+                </p>
+              </div>
+              <div>
+                <Label>Usuário Root (vendedor)</Label>
+                <Select value={vendedorRootId} onValueChange={setVendedorRootId} disabled={!isAdminRoot}>
+                  <SelectTrigger className="rounded-2xl h-12"><SelectValue placeholder="Selecione o vendedor Root" /></SelectTrigger>
+                  <SelectContent>
+                    {rootUsersList.map((u) => (
+                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
           )}
         </div>
 
