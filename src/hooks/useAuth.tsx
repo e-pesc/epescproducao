@@ -48,19 +48,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (mounted) setLoading(false);
     }, 5000);
 
-    let lastUserId: string | null = null;
+    let lastLoadedUserId: string | null = null;
 
     const applySession = (session: Session | null) => {
       if (!mounted) return;
 
       const currentRequestId = ++authRequestId;
       const currentUser = session?.user ?? null;
-      const sameUser = currentUser?.id === lastUserId;
 
       setUser(currentUser);
 
       if (!currentUser) {
-        lastUserId = null;
+        lastLoadedUserId = null;
         setRole(null);
         setPeixariaId(null);
         setLoading(false);
@@ -68,13 +67,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Avoid refetching role/peixaria on token refresh or tab focus
-      // — this causes the app to remount and reset navigation state.
-      if (sameUser) {
+      // when we already loaded data for this user.
+      if (currentUser.id === lastLoadedUserId) {
         setLoading(false);
         return;
       }
 
-      lastUserId = currentUser.id;
       setLoading(true);
 
       window.setTimeout(async () => {
@@ -82,6 +80,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!mounted || currentRequestId !== authRequestId) return;
         setRole(result.role);
         setPeixariaId(result.peixariaId);
+        // Only mark as loaded if we actually got data — otherwise allow retry
+        if (result.role !== null || result.peixariaId !== null) {
+          lastLoadedUserId = currentUser.id;
+        }
         setLoading(false);
       }, 0);
     };
