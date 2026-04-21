@@ -96,9 +96,9 @@ export function useBilling() {
     ]);
   };
 
-  const addDividaCompra = async (d: { fornecedor_id: string; produto_id: string; kg: number; preco_kg: number; quitado?: boolean; valor_pago?: number }) => {
+  const addDividaCompra = async (d: { fornecedor_id: string; produto_id: string; kg: number; preco_kg: number; quitado?: boolean; valor_pago?: number; created_at?: string }) => {
     const valor_total = +(d.kg * d.preco_kg).toFixed(2);
-    await supabase.from("dividas_compra").insert({ fornecedor_id: d.fornecedor_id, produto_id: d.produto_id, kg: d.kg, preco_kg: d.preco_kg, valor_total, quitado: d.quitado ?? false, valor_pago: d.valor_pago ?? 0, peixaria_id: peixariaId });
+    await supabase.from("dividas_compra").insert({ fornecedor_id: d.fornecedor_id, produto_id: d.produto_id, kg: d.kg, preco_kg: d.preco_kg, valor_total, quitado: d.quitado ?? false, valor_pago: d.valor_pago ?? 0, peixaria_id: peixariaId, ...(d.created_at ? { created_at: d.created_at } : {}) });
 
     logActivity({
       action: "Compra Registrada",
