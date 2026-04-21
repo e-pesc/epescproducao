@@ -514,7 +514,6 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
           />
           <p className="text-[11px] text-muted-foreground mt-1">
             Padrão: {formatBRL(MENSALIDADE_BASE)}.
-            {!isAdminRoot && " Apenas o Admin Root pode editar valores diferentes do padrão."}
           </p>
         </div>
 
@@ -527,7 +526,6 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
             <input
               type="checkbox"
               checked={vendaNegociada}
-              disabled={!isAdminRoot}
               onChange={(e) => {
                 setVendaNegociada(e.target.checked);
                 if (!e.target.checked) {
@@ -535,7 +533,7 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
                   setMensalidade(String(MENSALIDADE_BASE));
                 }
               }}
-              className="w-5 h-5 accent-primary disabled:opacity-50"
+              className="w-5 h-5 accent-primary"
             />
           </div>
           {vendaNegociada && (
@@ -547,7 +545,6 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
                   min={MENSALIDADE_BASE}
                   step="0.01"
                   value={mensalidade}
-                  disabled={!isAdminRoot}
                   onChange={(e) => setMensalidade(e.target.value)}
                   placeholder={MENSALIDADE_BASE.toFixed(2)}
                   className="rounded-2xl h-12"
@@ -558,7 +555,7 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
               </div>
               <div>
                 <Label>Usuário Root (vendedor)</Label>
-                <Select value={vendedorRootId} onValueChange={setVendedorRootId} disabled={!isAdminRoot}>
+                <Select value={vendedorRootId} onValueChange={setVendedorRootId}>
                   <SelectTrigger className="rounded-2xl h-12"><SelectValue placeholder="Selecione o vendedor Root" /></SelectTrigger>
                   <SelectContent>
                     {rootUsersList.map((u) => (
