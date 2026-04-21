@@ -42,8 +42,7 @@ export function buildReceiptText(r: ReceiptData): string {
   lines.push("*Itens:*");
   for (const it of r.itens) {
     const sub = it.kg * it.preco_kg;
-    const skuTag = it.sku ? ` (${it.sku})` : "";
-    lines.push(`• ${it.nome}${skuTag}`);
+    lines.push(`• ${it.nome}`);
     lines.push(`   ${it.kg}kg × ${formatBRL(it.preco_kg)} = *${formatBRL(sub)}*`);
   }
   lines.push("");

@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatBRL } from "@/lib/format";
 import { openWhatsappReceipt } from "@/lib/whatsappReceipt";
+import { usePeixariaInfo } from "@/hooks/usePeixariaInfo";
 
 const PREPAID_METHODS = [
   { value: "pix", label: "Pix" },
@@ -253,6 +254,7 @@ function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete, onCancel }:
 }) {
   const { clientes } = useClientes();
   const { produtos } = useProdutos();
+  const { nome: peixariaNome } = usePeixariaInfo();
   const client = clientes.find((c) => c.id === order.cliente_id);
   const isCancelled = !!order.cancelado;
 
@@ -363,6 +365,7 @@ function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete, onCancel }:
                 : Number(order.entrada ?? 0);
               openWhatsappReceipt(client?.whatsapp, {
                 tipo: "Pedido",
+                peixaria: peixariaNome ?? undefined,
                 numero: `#${String(order.numero || 0).padStart(3, "0")}`,
                 data: order.created_at,
                 contraparte: client?.nome ?? "Cliente",

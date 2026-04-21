@@ -48,21 +48,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (mounted) setLoading(false);
     }, 5000);
 
+    let lastUserId: string | null = null;
+
     const applySession = (session: Session | null) => {
       if (!mounted) return;
 
       const currentRequestId = ++authRequestId;
       const currentUser = session?.user ?? null;
+      const sameUser = currentUser?.id === lastUserId;
 
       setUser(currentUser);
 
       if (!currentUser) {
+        lastUserId = null;
         setRole(null);
         setPeixariaId(null);
         setLoading(false);
         return;
       }
 
+      // Avoid refetching role/peixaria on token refresh or tab focus
+      // — this causes the app to remount and reset navigation state.
+      if (sameUser) {
+        setLoading(false);
+        return;
+      }
+
+      lastUserId = currentUser.id;
       setLoading(true);
 
       window.setTimeout(async () => {
