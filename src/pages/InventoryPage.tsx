@@ -173,7 +173,7 @@ export function InventoryPage() {
 
     setSubmitting(true);
     try {
-      // 1) Atualiza estoque + preço de cada item
+      // 1) Atualiza estoque + preço de cada item (sequencial p/ evitar conflitos)
       for (const it of validItems) {
         await updateEstoque(it.produto_id, it.kg);
         await updateProduto(it.produto_id, { preco_compra: it.preco_kg });
@@ -182,25 +182,32 @@ export function InventoryPage() {
       const entradaNum = parseFloat(buyEntrada) || 0;
       const fornecedor = fornecedores.find((f) => f.id === buySupplierId);
 
+      // Timestamp único para todos os itens da mesma compra (garante agrupamento no histórico)
+      const purchaseTs = new Date().toISOString();
+
       if (buyPayment === "avista") {
         await addPagamentoSaida({ fornecedor_id: buySupplierId, valor: total, tipo: "total" });
-        for (const it of validItems) {
-          const valor = +(it.kg * it.preco_kg).toFixed(2);
-          await addDividaCompra({
-            fornecedor_id: buySupplierId,
-            produto_id: it.produto_id,
-            kg: it.kg,
-            preco_kg: it.preco_kg,
-            quitado: true,
-            valor_pago: valor,
-          });
-        }
+        await Promise.all(
+          validItems.map((it) => {
+            const valor = +(it.kg * it.preco_kg).toFixed(2);
+            return addDividaCompra({
+              fornecedor_id: buySupplierId,
+              produto_id: it.produto_id,
+              kg: it.kg,
+              preco_kg: it.preco_kg,
+              quitado: true,
+              valor_pago: valor,
+              created_at: purchaseTs,
+            });
+          })
+        );
       } else {
         const entradaSafe = Math.min(entradaNum, total);
         if (entradaSafe > 0) {
           await addPagamentoSaida({ fornecedor_id: buySupplierId, valor: entradaSafe, tipo: "adiantamento" });
         }
         // Distribui a entrada proporcionalmente entre os itens
+        const shares: number[] = [];
         let remainingEntrada = entradaSafe;
         for (let i = 0; i < validItems.length; i++) {
           const it = validItems[i];
@@ -210,16 +217,23 @@ export function InventoryPage() {
             ? +remainingEntrada.toFixed(2)
             : +Math.min(remainingEntrada, +(valor * (entradaSafe / total)).toFixed(2)).toFixed(2);
           remainingEntrada = +(remainingEntrada - share).toFixed(2);
-          const quitado = share >= valor;
-          await addDividaCompra({
-            fornecedor_id: buySupplierId,
-            produto_id: it.produto_id,
-            kg: it.kg,
-            preco_kg: it.preco_kg,
-            valor_pago: share,
-            quitado,
-          });
+          shares.push(share);
         }
+        await Promise.all(
+          validItems.map((it, i) => {
+            const valor = +(it.kg * it.preco_kg).toFixed(2);
+            const share = shares[i];
+            return addDividaCompra({
+              fornecedor_id: buySupplierId,
+              produto_id: it.produto_id,
+              kg: it.kg,
+              preco_kg: it.preco_kg,
+              valor_pago: share,
+              quitado: share >= valor,
+              created_at: purchaseTs,
+            });
+          })
+        );
       }
 
       const resumo = validItems
