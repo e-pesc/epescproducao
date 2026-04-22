@@ -121,6 +121,10 @@ export function SalesHistoryModal({ open, onOpenChange }: Props) {
               {filtered.map((v) => {
                 const cli = clientes.find((c) => c.id === v.cliente_id);
                 const isCancelled = !!v.cancelado;
+                const isPrazo = v.forma_pagamento === "prazo";
+                const pago = pagoVenda(v);
+                const saldo = +(Number(v.valor_total) - pago).toFixed(2);
+                const quitado = isPrazo && saldo <= 0;
                 return (
                   <div
                     key={v.id}
@@ -136,6 +140,8 @@ export function SalesHistoryModal({ open, onOpenChange }: Props) {
                         </h3>
                         {isCancelled ? (
                           <Badge className="bg-destructive hover:bg-destructive text-destructive-foreground text-[10px] px-2 py-0.5 font-bold">CANCELADA</Badge>
+                        ) : isPrazo && quitado ? (
+                          <Badge className="bg-fish-treated hover:bg-fish-treated text-white text-[10px] px-2 py-0.5 font-bold">QUITADA</Badge>
                         ) : (
                           <Badge className={cn(
                             "text-[10px] px-2 py-0.5 font-bold",
@@ -164,6 +170,14 @@ export function SalesHistoryModal({ open, onOpenChange }: Props) {
                         );
                       })}
                     </div>
+                    {!isCancelled && isPrazo && (
+                      <div className="rounded-2xl bg-muted px-3 py-2 mb-2 flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Pago: <span className="font-semibold text-foreground">{formatBRL(pago)}</span></span>
+                        <span className={cn("font-bold", quitado ? "text-fish-treated" : "text-amber-600")}>
+                          {quitado ? "Quitado" : `Saldo: ${formatBRL(saldo)}`}
+                        </span>
+                      </div>
+                    )}
                     {isCancelled && v.cancelado_motivo && (
                       <div className="rounded-2xl bg-destructive/10 border border-destructive/20 p-2 text-xs text-foreground">
                         <span className="font-semibold">Motivo: </span>{v.cancelado_motivo}
