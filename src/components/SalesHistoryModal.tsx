@@ -80,9 +80,15 @@ export function SalesHistoryModal({ open, onOpenChange }: Props) {
   const handleQuitar = async (amount: number, tipo: "total" | "parcial") => {
     if (!quitarTarget || !quitarTarget.cliente_id) return;
     try {
-      await receiveFromClient(quitarTarget.cliente_id, amount, tipo);
+      const saldo = +(Number(quitarTarget.valor_total) - pagoVenda(quitarTarget)).toFixed(2);
+      // Se o usuário escolheu "total", pagamos o saldo restante desta venda especificamente
+      const valor = tipo === "total" ? saldo : amount;
+      // Quando é total da venda mas o cliente tem outras dívidas, marcamos como parcial no cliente
+      // para não zerar o débito global. Só zera se o débito total = saldo desta venda.
+      const tipoCliente: "total" | "parcial" = "parcial";
+      await receiveFromClient(quitarTarget.cliente_id, valor, tipoCliente, { venda_id: quitarTarget.id });
       await Promise.all([refetch(), refetchBilling()]);
-      toast({ title: tipo === "total" ? "Débito quitado" : "Pagamento parcial registrado", description: formatBRL(amount) });
+      toast({ title: tipo === "total" ? "Venda quitada" : "Pagamento parcial registrado", description: formatBRL(valor) });
       setQuitarTarget(null);
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
