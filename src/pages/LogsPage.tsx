@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useActivityLogs } from "@/hooks/useActivityLog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, Download, Search, Filter } from "lucide-react";
 import { formatBRL } from "@/lib/format";
 import { SlideUpModal } from "@/components/SlideUpModal";
+import { supabase } from "@/integrations/supabase/client";
 
 interface LogsPageProps {
   onBack: () => void;
