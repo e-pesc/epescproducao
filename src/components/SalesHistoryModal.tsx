@@ -68,13 +68,14 @@ export function SalesHistoryModal({ open, onOpenChange }: Props) {
     setCancelTarget(null);
   };
 
-  // Quanto já foi pago para uma venda a prazo (entrada + recebimentos posteriores deste cliente associados)
+  // Quanto já foi pago para uma venda a prazo.
+  // Considera apenas recebimentos reais (origem "recebimento"), evitando contar
+  // o registro "venda" que armazena o valor total como recebível.
   const pagoVenda = (v: Venda) => {
-    const entrada = Number(v.entrada ?? 0);
     const recebimentos = pagamentosEntrada
-      .filter((p) => !p.cancelado && p.venda_id === v.id)
+      .filter((p) => !p.cancelado && p.venda_id === v.id && p.origem === "recebimento")
       .reduce((acc, p) => acc + Number(p.valor), 0);
-    return +(entrada + recebimentos).toFixed(2);
+    return +recebimentos.toFixed(2);
   };
 
   const handleQuitar = async (amount: number, tipo: "total" | "parcial") => {
@@ -202,7 +203,7 @@ export function SalesHistoryModal({ open, onOpenChange }: Props) {
                         onClick={() => {
                           const valor_pago = v.forma_pagamento === "avista"
                             ? Number(v.valor_total)
-                            : Number(v.entrada ?? 0);
+                            : pago;
                           openWhatsappReceipt(cli?.whatsapp, {
                             tipo: "Venda",
                             peixaria: peixariaNome ?? undefined,
