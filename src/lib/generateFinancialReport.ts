@@ -440,6 +440,7 @@ export async function generateLogsPDF(rows: LogRow[], startDate: string, endDate
     r.acao,
     r.entidade,
     r.entidadeId,
+    r.clienteFornecedor,
     r.valor != null ? brl(r.valor) : "-",
     r.descricao,
   ]);
@@ -451,7 +452,7 @@ export async function generateLogsPDF(rows: LogRow[], startDate: string, endDate
     styles: { fontSize: 6, cellPadding: 1.5 },
     headStyles: { fillColor: [41, 98, 255], fontSize: 6 },
     columnStyles: {
-      5: { halign: "right" },
+      6: { halign: "right" },
     },
     margin: { left: 6, right: 6 },
   });
@@ -468,6 +469,7 @@ export async function generateLogsXLS(rows: LogRow[], startDate: string, endDate
     "Ação": r.acao,
     "Entidade": r.entidade,
     "ID": r.entidadeId,
+    "Cliente/Fornecedor": r.clienteFornecedor,
     "Valor": r.valor ?? "",
     "Descrição": r.descricao,
   }));
@@ -476,14 +478,14 @@ export async function generateLogsXLS(rows: LogRow[], startDate: string, endDate
 
   const range = XLSX.utils.decode_range(ws["!ref"] ?? "A1");
   for (let R = range.s.r + 1; R <= range.e.r; R++) {
-    const addr = XLSX.utils.encode_cell({ r: R, c: 5 });
+    const addr = XLSX.utils.encode_cell({ r: R, c: 6 });
     if (ws[addr] && typeof ws[addr].v === "number") {
       ws[addr].z = 'R$ #,##0.00';
     }
   }
 
   ws["!cols"] = [
-    { wch: 18 }, { wch: 20 }, { wch: 22 }, { wch: 15 }, { wch: 15 }, { wch: 14 }, { wch: 50 },
+    { wch: 18 }, { wch: 20 }, { wch: 22 }, { wch: 15 }, { wch: 15 }, { wch: 22 }, { wch: 14 }, { wch: 50 },
   ];
 
   const wb = XLSX.utils.book_new();
