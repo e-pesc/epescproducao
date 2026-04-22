@@ -343,6 +343,7 @@ export interface LogRow {
   acao: string;
   entidade: string;
   entidadeId: string;
+  clienteFornecedor: string;
   valor: number | null;
   descricao: string;
 }
@@ -351,26 +352,74 @@ export async function fetchLogsData(startDate: string, endDate: string): Promise
   const start = `${startDate}T00:00:00`;
   const end = `${endDate}T23:59:59`;
 
-  const { data } = await supabase
-    .from("activity_logs")
-    .select("*")
-    .gte("created_at", start)
-    .lte("created_at", end)
-    .order("created_at", { ascending: false })
-    .limit(1000);
+  const [logsRes, clientesRes, fornecedoresRes, dividasRes, vendasRes, pedidosRes] = await Promise.all([
+    supabase
+      .from("activity_logs")
+      .select("*")
+      .gte("created_at", start)
+      .lte("created_at", end)
+      .order("created_at", { ascending: false })
+      .limit(1000),
+    supabase.from("clientes").select("id, nome"),
+    supabase.from("fornecedores").select("id, nome"),
+    supabase.from("dividas_compra").select("id, fornecedor_id, descricao"),
+    supabase.from("vendas").select("id, cliente_id"),
+    supabase.from("pedidos").select("id, cliente_id"),
+  ]);
 
-  return (data ?? []).map(l => ({
+  const data = logsRes.data ?? [];
+  const clientes = clientesRes.data ?? [];
+  const fornecedores = fornecedoresRes.data ?? [];
+  const dividas = dividasRes.data ?? [];
+  const vendas = vendasRes.data ?? [];
+  const pedidos = pedidosRes.data ?? [];
+
+  // Build prefix maps (entity_id is stored as id.slice(0,8))
+  const clientePrefix = new Map<string, string>();
+  for (const c of clientes) clientePrefix.set(c.id.slice(0, 8), c.nome);
+  const fornecedorPrefix = new Map<string, string>();
+  for (const f of fornecedores) fornecedorPrefix.set(f.id.slice(0, 8), f.nome);
+
+  // Map dividas/vendas/pedidos prefix → cliente/fornecedor name
+  const dividaPrefixToFornecedor = new Map<string, string>();
+  for (const d of dividas) {
+    const fname = d.fornecedor_id ? fornecedorPrefix.get(d.fornecedor_id.slice(0, 8)) : null;
+    dividaPrefixToFornecedor.set(d.id.slice(0, 8), fname ?? (d.descricao ? "Despesa" : "-"));
+  }
+  const vendaPrefixToCliente = new Map<string, string>();
+  for (const v of vendas) {
+    const cname = v.cliente_id ? clientePrefix.get(v.cliente_id.slice(0, 8)) : null;
+    vendaPrefixToCliente.set(v.id.slice(0, 8), cname ?? "Consumidor");
+  }
+  const pedidoPrefixToCliente = new Map<string, string>();
+  for (const p of pedidos) {
+    const cname = p.cliente_id ? clientePrefix.get(p.cliente_id.slice(0, 8)) : null;
+    pedidoPrefixToCliente.set(p.id.slice(0, 8), cname ?? "-");
+  }
+
+  const resolveCF = (entity: string, entityId: string): string => {
+    const e = (entity || "").toLowerCase();
+    if (e === "cliente") return clientePrefix.get(entityId) ?? "-";
+    if (e === "fornecedor") return fornecedorPrefix.get(entityId) ?? "-";
+    if (e === "dívida" || e === "divida" || e === "compra") return dividaPrefixToFornecedor.get(entityId) ?? "-";
+    if (e === "venda") return vendaPrefixToCliente.get(entityId) ?? "-";
+    if (e === "pedido") return pedidoPrefixToCliente.get(entityId) ?? "-";
+    return "-";
+  };
+
+  return data.map(l => ({
     dataHora: fmtDate(l.created_at),
     usuario: l.user_name,
     acao: l.action,
     entidade: l.entity,
     entidadeId: l.entity_id,
+    clienteFornecedor: resolveCF(l.entity, l.entity_id),
     valor: l.amount,
     descricao: l.description,
   }));
 }
 
-const LOG_HEADERS = ["Data/Hora", "Usuario", "Acao", "Entidade", "ID", "Valor", "Descricao"];
+const LOG_HEADERS = ["Data/Hora", "Usuario", "Acao", "Entidade", "ID", "Cliente/Fornecedor", "Valor", "Descricao"];
 
 export async function generateLogsPDF(rows: LogRow[], startDate: string, endDate: string) {
   const jsPDFModule = await import("jspdf");
