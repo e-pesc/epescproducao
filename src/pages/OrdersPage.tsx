@@ -405,7 +405,7 @@ function OrderCard({ order, isPendente, pagoExtra, onEdit, onFulfill, onDelete, 
 export function OrdersPage() {
   const { pedidos, deletePedido, cancelPedido, refetch: refetchPedidos } = usePedidos();
   const { refetch: refetchProdutos } = useProdutos();
-  const { refetch: refetchBilling } = useBilling();
+  const { refetch: refetchBilling, receiveFromClient, pagamentosEntrada } = useBilling();
   const { role } = useAuth();
   const isAdmin = role === "administrador" || role === "root";
   const { toast } = useToast();
@@ -418,6 +418,21 @@ export function OrdersPage() {
   const [fulfillOrder, setFulfillOrder] = useState<Pedido | undefined>();
   const [deleteTarget, setDeleteTarget] = useState<Pedido | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Pedido | null>(null);
+  const [quitarTarget, setQuitarTarget] = useState<Pedido | null>(null);
+
+  // Pagamentos extra (recebimentos posteriores ao atendimento) por pedido
+  const pagoExtraByPedido = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of pagamentosEntrada) {
+      if (p.cancelado || !p.pedido_id) continue;
+      // entradas iniciais já foram registradas como tipo "parcial"/"total" no fulfill;
+      // recebimentos posteriores são tipo "parcial"/"total" com origem "recebimento"
+      if (p.origem === "recebimento") {
+        map.set(p.pedido_id, +(((map.get(p.pedido_id) ?? 0) + Number(p.valor))).toFixed(2));
+      }
+    }
+    return map;
+  }, [pagamentosEntrada]);
 
   const prevMonth = () => { if (filterMonth === 0) { setFilterMonth(11); setFilterYear((y) => y - 1); } else setFilterMonth((m) => m - 1); };
   const nextMonth = () => { if (filterMonth === 11) { setFilterMonth(0); setFilterYear((y) => y + 1); } else setFilterMonth((m) => m + 1); };
@@ -450,6 +465,18 @@ export function OrdersPage() {
     await Promise.all([refetchPedidos(), refetchProdutos(), refetchBilling()]);
     toast({ title: "Pedido cancelado", description: "Estoque, entradas e débitos foram estornados." });
     setCancelTarget(null);
+  };
+
+  const handleQuitar = async (amount: number, tipo: "total" | "parcial") => {
+    if (!quitarTarget || !quitarTarget.cliente_id) return;
+    try {
+      await receiveFromClient(quitarTarget.cliente_id, amount, tipo);
+      await Promise.all([refetchPedidos(), refetchBilling()]);
+      toast({ title: tipo === "total" ? "Débito quitado" : "Pagamento parcial registrado", description: formatBRL(amount) });
+      setQuitarTarget(null);
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    }
   };
 
   return (
@@ -492,7 +519,14 @@ export function OrdersPage() {
           ) : (
             <div className="space-y-3">
               {atendidos.map((o) => (
-                <OrderCard key={o.id} order={o} isPendente={false} onCancel={isAdmin && !o.cancelado ? (o) => setCancelTarget(o) : undefined} />
+                <OrderCard
+                  key={o.id}
+                  order={o}
+                  isPendente={false}
+                  pagoExtra={pagoExtraByPedido.get(o.id) ?? 0}
+                  onCancel={isAdmin && !o.cancelado ? (o) => setCancelTarget(o) : undefined}
+                  onQuitar={!o.cancelado ? (o) => setQuitarTarget(o) : undefined}
+                />
               ))}
             </div>
           )}
@@ -521,6 +555,17 @@ export function OrdersPage() {
           onOpenChange={(o) => !o && setCancelTarget(null)}
           title={`Cancelar pedido #${String(cancelTarget.numero || 0).padStart(3, "0")}`}
           onConfirm={handleCancel}
+        />
+      )}
+
+      {quitarTarget && (
+        <QuitacaoModal
+          open={!!quitarTarget}
+          onOpenChange={(o) => !o && setQuitarTarget(null)}
+          title={`Quitar pedido #${String(quitarTarget.numero || 0).padStart(3, "0")}`}
+          totalDevido={Number(quitarTarget.valor_total)}
+          jaPago={Number(quitarTarget.entrada ?? 0) + (pagoExtraByPedido.get(quitarTarget.id) ?? 0)}
+          onConfirm={handleQuitar}
         />
       )}
     </div>
