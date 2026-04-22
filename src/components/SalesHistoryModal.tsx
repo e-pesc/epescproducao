@@ -199,6 +199,16 @@ export function SalesHistoryModal({ open, onOpenChange }: Props) {
                       >
                         <MessageCircle className="w-4 h-4" /> WhatsApp
                       </Button>
+                      {!isCancelled && v.forma_pagamento === "prazo" && v.cliente_id && pagoVenda(v) < Number(v.valor_total) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 rounded-2xl gap-1.5 border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
+                          onClick={() => setQuitarTarget(v)}
+                        >
+                          <DollarSign className="w-4 h-4" /> Quitar
+                        </Button>
+                      )}
                       {!isCancelled && isAdmin && (
                         <Button variant="outline" size="sm" className="flex-1 rounded-2xl text-destructive border-destructive/40 hover:bg-destructive/10" onClick={() => setCancelTarget(v)}>
                           <XCircle className="w-4 h-4" /> Cancelar
@@ -219,6 +229,17 @@ export function SalesHistoryModal({ open, onOpenChange }: Props) {
           onOpenChange={(o) => !o && setCancelTarget(null)}
           title={`Cancelar venda — ${formatBRL(Number(cancelTarget.valor_total))}`}
           onConfirm={handleCancel}
+        />
+      )}
+
+      {quitarTarget && (
+        <QuitacaoModal
+          open={!!quitarTarget}
+          onOpenChange={(o) => !o && setQuitarTarget(null)}
+          title="Quitar Venda a Prazo"
+          totalDevido={Number(quitarTarget.valor_total)}
+          jaPago={pagoVenda(quitarTarget)}
+          onConfirm={handleQuitar}
         />
       )}
     </>
