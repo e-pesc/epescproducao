@@ -182,6 +182,9 @@ export function LogsPage({ onBack }: LogsPageProps) {
                   </span>
                 </div>
                 <p className="text-sm font-medium">{log.user_name}</p>
+                {(() => { const cf = resolver(log.entity, log.entity_id); return cf && cf !== "-" ? (
+                  <p className="text-xs"><span className="text-muted-foreground">Cliente/Fornecedor:</span> <span className="font-medium">{cf}</span></p>
+                ) : null; })()}
                 {log.entity_id && (
                   <p className="text-xs text-muted-foreground">{log.entity}: {log.entity_id}</p>
                 )}
