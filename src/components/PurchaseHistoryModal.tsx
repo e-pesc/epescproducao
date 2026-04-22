@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { CancelReasonModal } from "@/components/CancelReasonModal";
-import { ChevronLeft, ChevronRight, Calendar, History, Search, XCircle, MessageCircle } from "lucide-react";
+import { QuitacaoModal } from "@/components/QuitacaoModal";
+import { ChevronLeft, ChevronRight, Calendar, History, Search, XCircle, MessageCircle, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/format";
 import { openWhatsappReceipt } from "@/lib/whatsappReceipt";
@@ -23,7 +24,7 @@ interface Props {
 }
 
 export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
-  const { dividasCompra, cancelDivida, refetch } = useBilling();
+  const { dividasCompra, cancelDivida, payDivida, refetch } = useBilling();
   const { fornecedores } = useFornecedores();
   const { produtos, refetch: refetchProdutos } = useProdutos();
   const { role } = useAuth();
@@ -36,6 +37,7 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
   const [year, setYear] = useState(now.getFullYear());
   const [search, setSearch] = useState("");
   const [cancelTarget, setCancelTarget] = useState<DividaCompra[] | null>(null);
+  const [quitarTarget, setQuitarTarget] = useState<DividaCompra[] | null>(null);
 
   useEffect(() => {
     if (open) refetch();
@@ -84,6 +86,37 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
       await Promise.all([refetch(), refetchProdutos()]);
       toast({ title: "Compra cancelada", description: "Estoque e pagamentos foram estornados." });
       setCancelTarget(null);
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const handleQuitar = async (amount: number, tipo: "total" | "parcial") => {
+    if (!quitarTarget || quitarTarget.length === 0) return;
+    try {
+      // Distribui o valor pago proporcionalmente entre as dívidas em aberto do grupo
+      const abertas = quitarTarget.filter((d) => !d.cancelado && !d.quitado);
+      const saldoTotal = abertas.reduce((acc, d) => acc + Math.max(0, Number(d.valor_total) - Number(d.valor_pago ?? 0)), 0);
+      if (saldoTotal <= 0) return;
+
+      let restante = amount;
+      for (let i = 0; i < abertas.length; i++) {
+        const d = abertas[i];
+        const saldoDivida = +(Number(d.valor_total) - Number(d.valor_pago ?? 0)).toFixed(2);
+        if (saldoDivida <= 0) continue;
+        // Última: usa todo o restante; senão, proporcional
+        const isLast = i === abertas.length - 1;
+        const aPagar = isLast
+          ? Math.min(restante, saldoDivida)
+          : Math.min(saldoDivida, +((amount * saldoDivida) / saldoTotal).toFixed(2));
+        if (aPagar <= 0) continue;
+        const isQuitarTotal = tipo === "total" || aPagar >= saldoDivida;
+        await payDivida(d.id, aPagar, isQuitarTotal ? "total" : "adiantamento");
+        restante = +(restante - aPagar).toFixed(2);
+      }
+      await refetch();
+      toast({ title: tipo === "total" ? "Compra quitada" : "Pagamento parcial registrado", description: formatBRL(amount) });
+      setQuitarTarget(null);
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
     }
@@ -219,6 +252,16 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
                       >
                         <MessageCircle className="w-4 h-4" /> WhatsApp
                       </Button>
+                      {!allCancelled && !allQuitado && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 rounded-2xl gap-1.5 border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
+                          onClick={() => setQuitarTarget(group)}
+                        >
+                          <DollarSign className="w-4 h-4" /> Quitar
+                        </Button>
+                      )}
                       {!allCancelled && isAdmin && (
                         <Button variant="outline" size="sm" className="flex-1 rounded-2xl text-destructive border-destructive/40 hover:bg-destructive/10" onClick={() => setCancelTarget(group)}>
                           <XCircle className="w-4 h-4" /> Cancelar
@@ -241,6 +284,18 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
           onConfirm={handleCancel}
         />
       )}
+
+      {quitarTarget && (
+        <QuitacaoModal
+          open={!!quitarTarget}
+          onOpenChange={(o) => !o && setQuitarTarget(null)}
+          title="Quitar Compra"
+          totalDevido={quitarTarget.reduce((acc, d) => acc + Number(d.valor_total), 0)}
+          jaPago={quitarTarget.reduce((acc, d) => acc + Number(d.valor_pago ?? 0), 0)}
+          onConfirm={handleQuitar}
+        />
+      )}
     </>
   );
 }
+

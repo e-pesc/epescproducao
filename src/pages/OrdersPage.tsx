@@ -12,9 +12,10 @@ import { Badge } from "@/components/ui/badge";
 import { SlideUpModal } from "@/components/SlideUpModal";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { CancelReasonModal } from "@/components/CancelReasonModal";
+import { QuitacaoModal } from "@/components/QuitacaoModal";
 import { useAuth } from "@/hooks/useAuth";
 import { useBilling } from "@/hooks/useBilling";
-import { FileText, Plus, Pencil, CheckCircle2, Trash2, MapPin, Calendar, MessageCircle, ChevronLeft, ChevronRight, Search, XCircle } from "lucide-react";
+import { FileText, Plus, Pencil, CheckCircle2, Trash2, MapPin, Calendar, MessageCircle, ChevronLeft, ChevronRight, Search, XCircle, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -249,8 +250,8 @@ function MonthNavigator({ month, year, onPrev, onNext, searchValue, onSearchChan
 }
 
 // ─── Order Card ───
-function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete, onCancel }: {
-  order: Pedido; isPendente: boolean; onEdit?: (o: Pedido) => void; onFulfill?: (o: Pedido) => void; onDelete?: (o: Pedido) => void; onCancel?: (o: Pedido) => void;
+function OrderCard({ order, isPendente, pagoExtra, onEdit, onFulfill, onDelete, onCancel, onQuitar }: {
+  order: Pedido; isPendente: boolean; pagoExtra?: number; onEdit?: (o: Pedido) => void; onFulfill?: (o: Pedido) => void; onDelete?: (o: Pedido) => void; onCancel?: (o: Pedido) => void; onQuitar?: (o: Pedido) => void;
 }) {
   const { clientes } = useClientes();
   const { produtos } = useProdutos();
@@ -380,6 +381,16 @@ function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete, onCancel }:
           >
             <MessageCircle className="w-4 h-4" /> WhatsApp
           </Button>
+          {!isCancelled && onQuitar && order.pagamento === "prazo" && (Number(order.entrada ?? 0) + (pagoExtra ?? 0)) < Number(order.valor_total) && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 rounded-2xl gap-1.5 border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
+              onClick={() => onQuitar(order)}
+            >
+              <DollarSign className="w-4 h-4" /> Quitar
+            </Button>
+          )}
           {!isCancelled && onCancel && (
             <Button variant="outline" size="sm" className="flex-1 rounded-2xl text-destructive border-destructive/40 hover:bg-destructive/10" onClick={() => onCancel(order)}>
               <XCircle className="w-4 h-4" /> Cancelar
@@ -394,7 +405,7 @@ function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete, onCancel }:
 export function OrdersPage() {
   const { pedidos, deletePedido, cancelPedido, refetch: refetchPedidos } = usePedidos();
   const { refetch: refetchProdutos } = useProdutos();
-  const { refetch: refetchBilling } = useBilling();
+  const { refetch: refetchBilling, receiveFromClient, pagamentosEntrada } = useBilling();
   const { role } = useAuth();
   const isAdmin = role === "administrador" || role === "root";
   const { toast } = useToast();
@@ -407,6 +418,21 @@ export function OrdersPage() {
   const [fulfillOrder, setFulfillOrder] = useState<Pedido | undefined>();
   const [deleteTarget, setDeleteTarget] = useState<Pedido | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Pedido | null>(null);
+  const [quitarTarget, setQuitarTarget] = useState<Pedido | null>(null);
+
+  // Pagamentos extra (recebimentos posteriores ao atendimento) por pedido
+  const pagoExtraByPedido = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of pagamentosEntrada) {
+      if (p.cancelado || !p.pedido_id) continue;
+      // entradas iniciais já foram registradas como tipo "parcial"/"total" no fulfill;
+      // recebimentos posteriores são tipo "parcial"/"total" com origem "recebimento"
+      if (p.origem === "recebimento") {
+        map.set(p.pedido_id, +(((map.get(p.pedido_id) ?? 0) + Number(p.valor))).toFixed(2));
+      }
+    }
+    return map;
+  }, [pagamentosEntrada]);
 
   const prevMonth = () => { if (filterMonth === 0) { setFilterMonth(11); setFilterYear((y) => y - 1); } else setFilterMonth((m) => m - 1); };
   const nextMonth = () => { if (filterMonth === 11) { setFilterMonth(0); setFilterYear((y) => y + 1); } else setFilterMonth((m) => m + 1); };
@@ -439,6 +465,18 @@ export function OrdersPage() {
     await Promise.all([refetchPedidos(), refetchProdutos(), refetchBilling()]);
     toast({ title: "Pedido cancelado", description: "Estoque, entradas e débitos foram estornados." });
     setCancelTarget(null);
+  };
+
+  const handleQuitar = async (amount: number, tipo: "total" | "parcial") => {
+    if (!quitarTarget || !quitarTarget.cliente_id) return;
+    try {
+      await receiveFromClient(quitarTarget.cliente_id, amount, tipo);
+      await Promise.all([refetchPedidos(), refetchBilling()]);
+      toast({ title: tipo === "total" ? "Débito quitado" : "Pagamento parcial registrado", description: formatBRL(amount) });
+      setQuitarTarget(null);
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    }
   };
 
   return (
@@ -481,7 +519,14 @@ export function OrdersPage() {
           ) : (
             <div className="space-y-3">
               {atendidos.map((o) => (
-                <OrderCard key={o.id} order={o} isPendente={false} onCancel={isAdmin && !o.cancelado ? (o) => setCancelTarget(o) : undefined} />
+                <OrderCard
+                  key={o.id}
+                  order={o}
+                  isPendente={false}
+                  pagoExtra={pagoExtraByPedido.get(o.id) ?? 0}
+                  onCancel={isAdmin && !o.cancelado ? (o) => setCancelTarget(o) : undefined}
+                  onQuitar={!o.cancelado ? (o) => setQuitarTarget(o) : undefined}
+                />
               ))}
             </div>
           )}
@@ -510,6 +555,17 @@ export function OrdersPage() {
           onOpenChange={(o) => !o && setCancelTarget(null)}
           title={`Cancelar pedido #${String(cancelTarget.numero || 0).padStart(3, "0")}`}
           onConfirm={handleCancel}
+        />
+      )}
+
+      {quitarTarget && (
+        <QuitacaoModal
+          open={!!quitarTarget}
+          onOpenChange={(o) => !o && setQuitarTarget(null)}
+          title={`Quitar pedido #${String(quitarTarget.numero || 0).padStart(3, "0")}`}
+          totalDevido={Number(quitarTarget.valor_total)}
+          jaPago={Number(quitarTarget.entrada ?? 0) + (pagoExtraByPedido.get(quitarTarget.id) ?? 0)}
+          onConfirm={handleQuitar}
         />
       )}
     </div>

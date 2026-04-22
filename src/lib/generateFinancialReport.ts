@@ -166,23 +166,30 @@ export async function fetchFinancialData(startDate: string, endDate: string): Pr
     }
   }
 
-  // Process dividas_compra as "Compra"
+  // Process dividas_compra as "Compra" (skip cancelled)
   for (const d of dividas) {
-    const prod = produtoMap.get(d.produto_id);
-    const fornecedorInfo = fornecedorMap.get(d.fornecedor_id);
-    const fornecedorNome = fornecedorInfo?.nome ?? "-";
+    if (d.cancelado) continue;
+    const prod = d.produto_id ? produtoMap.get(d.produto_id) : null;
+    const fornecedorInfo = d.fornecedor_id ? fornecedorMap.get(d.fornecedor_id) : null;
+    const fornecedorNome = fornecedorInfo?.nome ?? (d.descricao ? "Despesa" : "-");
     const fornecedorCpf = fornecedorInfo?.cpf ?? "-";
+    const prodKey = d.produto_id ? d.produto_id.slice(0, 8) : "";
+    const dKey = d.id ? d.id.slice(0, 8) : "";
     rows.push({
       dataHora: fmtDate(d.created_at),
-      usuario: logUserMap.get(`Compra Registrada:${d.produto_id.slice(0, 8)}`) ?? logUserMap.get(`Compra Registrada:${d.id.slice(0, 8)}`) ?? "-",
+      usuario:
+        (prodKey && logUserMap.get(`Compra Registrada:${prodKey}`)) ||
+        (dKey && logUserMap.get(`Compra Registrada:${dKey}`)) ||
+        (dKey && logUserMap.get(`Despesa Lançada:${dKey}`)) ||
+        "-",
       operacao: "Compra",
       clienteFornecedor: fornecedorNome,
       cpfCnpj: fornecedorCpf,
       sku: prod?.sku ?? "-",
-      descricao: prod?.nome ?? "-",
-      precoCompra: d.preco_kg,
-      quantidade: d.kg,
-      valorTotal: d.valor_total,
+      descricao: prod?.nome ?? d.descricao ?? "-",
+      precoCompra: Number(d.preco_kg) || 0,
+      quantidade: Number(d.kg) || 0,
+      valorTotal: Number(d.valor_total) || 0,
       margemLucro: null,
     });
   }
