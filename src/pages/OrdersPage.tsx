@@ -250,8 +250,8 @@ function MonthNavigator({ month, year, onPrev, onNext, searchValue, onSearchChan
 }
 
 // ─── Order Card ───
-function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete, onCancel }: {
-  order: Pedido; isPendente: boolean; onEdit?: (o: Pedido) => void; onFulfill?: (o: Pedido) => void; onDelete?: (o: Pedido) => void; onCancel?: (o: Pedido) => void;
+function OrderCard({ order, isPendente, pagoExtra, onEdit, onFulfill, onDelete, onCancel, onQuitar }: {
+  order: Pedido; isPendente: boolean; pagoExtra?: number; onEdit?: (o: Pedido) => void; onFulfill?: (o: Pedido) => void; onDelete?: (o: Pedido) => void; onCancel?: (o: Pedido) => void; onQuitar?: (o: Pedido) => void;
 }) {
   const { clientes } = useClientes();
   const { produtos } = useProdutos();
@@ -381,6 +381,16 @@ function OrderCard({ order, isPendente, onEdit, onFulfill, onDelete, onCancel }:
           >
             <MessageCircle className="w-4 h-4" /> WhatsApp
           </Button>
+          {!isCancelled && onQuitar && order.pagamento === "prazo" && (Number(order.entrada ?? 0) + (pagoExtra ?? 0)) < Number(order.valor_total) && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex-1 rounded-2xl gap-1.5 border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
+              onClick={() => onQuitar(order)}
+            >
+              <DollarSign className="w-4 h-4" /> Quitar
+            </Button>
+          )}
           {!isCancelled && onCancel && (
             <Button variant="outline" size="sm" className="flex-1 rounded-2xl text-destructive border-destructive/40 hover:bg-destructive/10" onClick={() => onCancel(order)}>
               <XCircle className="w-4 h-4" /> Cancelar
