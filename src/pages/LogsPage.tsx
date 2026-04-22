@@ -111,13 +111,14 @@ export function LogsPage({ onBack }: LogsPageProps) {
       "Usuário": l.user_name,
       "Ação": l.action,
       "Entidade/ID": l.entity_id ? `${l.entity} - ${l.entity_id}` : l.entity,
+      "Cliente/Fornecedor": resolver(l.entity, l.entity_id),
       "Valor": l.amount != null ? l.amount : "",
       "Descrição": l.description,
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     ws["!cols"] = [
       { wch: 20 }, { wch: 20 }, { wch: 22 },
-      { wch: 20 }, { wch: 15 }, { wch: 50 },
+      { wch: 20 }, { wch: 22 }, { wch: 15 }, { wch: 50 },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Logs");
