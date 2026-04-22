@@ -37,7 +37,7 @@ export async function fetchFinancialData(startDate: string, endDate: string): Pr
   const start = `${startDate}T00:00:00`;
   const end = `${endDate}T23:59:59`;
 
-  const [vendasRes, pedidosRes, dividasRes, produtosRes, usersRes, clientesRes, fornecedoresRes, logsRes] = await Promise.all([
+  const [vendasRes, pedidosRes, dividasRes, produtosRes, usersRes, clientesRes, fornecedoresRes, logsRes, pagEntradaRes, pagSaidaRes] = await Promise.all([
     supabase.from("vendas").select("*").gte("created_at", start).lte("created_at", end),
     supabase.from("pedidos").select("*").eq("status", "atendido").gte("fulfilled_at", start).lte("fulfilled_at", end),
     supabase.from("dividas_compra").select("*").gte("created_at", start).lte("created_at", end),
@@ -46,6 +46,8 @@ export async function fetchFinancialData(startDate: string, endDate: string): Pr
     supabase.from("clientes").select("id, nome, cpf_cnpj"),
     supabase.from("fornecedores").select("id, nome, cpf_cnpj"),
     supabase.from("activity_logs").select("entity_id, user_name, action").gte("created_at", start).lte("created_at", end),
+    supabase.from("pagamentos_entrada").select("*").eq("origem", "recebimento").gte("created_at", start).lte("created_at", end),
+    supabase.from("pagamentos_saida").select("*").not("divida_id", "is", null).gte("created_at", start).lte("created_at", end),
   ]);
 
   const vendas = vendasRes.data ?? [];
