@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useActivityLogs } from "@/hooks/useActivityLog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, Download, Search, Filter } from "lucide-react";
 import { formatBRL } from "@/lib/format";
 import { SlideUpModal } from "@/components/SlideUpModal";
+import { supabase } from "@/integrations/supabase/client";
 
 interface LogsPageProps {
   onBack: () => void;
@@ -32,6 +33,47 @@ export function LogsPage({ onBack }: LogsPageProps) {
   const [filterAction, setFilterAction] = useState("");
   const [filterStart, setFilterStart] = useState("");
   const [filterEnd, setFilterEnd] = useState("");
+  const [resolver, setResolver] = useState<(entity: string, entityId: string) => string>(() => () => "-");
+
+  useEffect(() => {
+    (async () => {
+      const [c, f, d, v, p] = await Promise.all([
+        supabase.from("clientes").select("id, nome"),
+        supabase.from("fornecedores").select("id, nome"),
+        supabase.from("dividas_compra").select("id, fornecedor_id, descricao"),
+        supabase.from("vendas").select("id, cliente_id"),
+        supabase.from("pedidos").select("id, cliente_id"),
+      ]);
+      const clientePrefix = new Map<string, string>();
+      for (const x of c.data ?? []) clientePrefix.set(x.id.slice(0, 8), x.nome);
+      const fornecedorPrefix = new Map<string, string>();
+      for (const x of f.data ?? []) fornecedorPrefix.set(x.id.slice(0, 8), x.nome);
+      const dividaMap = new Map<string, string>();
+      for (const x of d.data ?? []) {
+        const fname = x.fornecedor_id ? fornecedorPrefix.get(x.fornecedor_id.slice(0, 8)) : null;
+        dividaMap.set(x.id.slice(0, 8), fname ?? (x.descricao ? "Despesa" : "-"));
+      }
+      const vendaMap = new Map<string, string>();
+      for (const x of v.data ?? []) {
+        const cname = x.cliente_id ? clientePrefix.get(x.cliente_id.slice(0, 8)) : null;
+        vendaMap.set(x.id.slice(0, 8), cname ?? "Consumidor");
+      }
+      const pedidoMap = new Map<string, string>();
+      for (const x of p.data ?? []) {
+        const cname = x.cliente_id ? clientePrefix.get(x.cliente_id.slice(0, 8)) : null;
+        pedidoMap.set(x.id.slice(0, 8), cname ?? "-");
+      }
+      setResolver(() => (entity: string, entityId: string) => {
+        const e = (entity || "").toLowerCase();
+        if (e === "cliente") return clientePrefix.get(entityId) ?? "-";
+        if (e === "fornecedor") return fornecedorPrefix.get(entityId) ?? "-";
+        if (e === "dívida" || e === "divida" || e === "compra") return dividaMap.get(entityId) ?? "-";
+        if (e === "venda") return vendaMap.get(entityId) ?? "-";
+        if (e === "pedido") return pedidoMap.get(entityId) ?? "-";
+        return "-";
+      });
+    })();
+  }, []);
 
   const filtered = useMemo(() => {
     if (!search) return logs;
@@ -69,13 +111,14 @@ export function LogsPage({ onBack }: LogsPageProps) {
       "Usuário": l.user_name,
       "Ação": l.action,
       "Entidade/ID": l.entity_id ? `${l.entity} - ${l.entity_id}` : l.entity,
+      "Cliente/Fornecedor": resolver(l.entity, l.entity_id),
       "Valor": l.amount != null ? l.amount : "",
       "Descrição": l.description,
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     ws["!cols"] = [
       { wch: 20 }, { wch: 20 }, { wch: 22 },
-      { wch: 20 }, { wch: 15 }, { wch: 50 },
+      { wch: 20 }, { wch: 22 }, { wch: 15 }, { wch: 50 },
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Logs");
@@ -139,6 +182,9 @@ export function LogsPage({ onBack }: LogsPageProps) {
                   </span>
                 </div>
                 <p className="text-sm font-medium">{log.user_name}</p>
+                {(() => { const cf = resolver(log.entity, log.entity_id); return cf && cf !== "-" ? (
+                  <p className="text-xs"><span className="text-muted-foreground">Cliente/Fornecedor:</span> <span className="font-medium">{cf}</span></p>
+                ) : null; })()}
                 {log.entity_id && (
                   <p className="text-xs text-muted-foreground">{log.entity}: {log.entity_id}</p>
                 )}
@@ -156,6 +202,7 @@ export function LogsPage({ onBack }: LogsPageProps) {
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Usuário</th>
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Ação</th>
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Entidade/ID</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Cliente/Fornecedor</th>
                   <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Valor</th>
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Descrição</th>
                 </tr>
@@ -171,6 +218,7 @@ export function LogsPage({ onBack }: LogsPageProps) {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{log.entity_id ? `${log.entity}: ${log.entity_id}` : "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{resolver(log.entity, log.entity_id) || "—"}</td>
                     <td className="px-4 py-3 text-right font-semibold text-primary">{log.amount != null ? formatBRL(log.amount) : "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground max-w-xs truncate">{log.description}</td>
                   </tr>

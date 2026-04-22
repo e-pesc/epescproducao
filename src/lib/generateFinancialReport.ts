@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 export interface ReportRow {
   dataHora: string;
   usuario: string;
-  operacao: "Venda" | "Compra";
+  operacao: "Venda" | "Compra" | "Quitação Crédito" | "Quitação Débito";
   clienteFornecedor: string;
   cpfCnpj: string;
   sku: string;
@@ -37,7 +37,7 @@ export async function fetchFinancialData(startDate: string, endDate: string): Pr
   const start = `${startDate}T00:00:00`;
   const end = `${endDate}T23:59:59`;
 
-  const [vendasRes, pedidosRes, dividasRes, produtosRes, usersRes, clientesRes, fornecedoresRes, logsRes] = await Promise.all([
+  const [vendasRes, pedidosRes, dividasRes, produtosRes, usersRes, clientesRes, fornecedoresRes, logsRes, pagEntradaRes, pagSaidaRes] = await Promise.all([
     supabase.from("vendas").select("*").gte("created_at", start).lte("created_at", end),
     supabase.from("pedidos").select("*").eq("status", "atendido").gte("fulfilled_at", start).lte("fulfilled_at", end),
     supabase.from("dividas_compra").select("*").gte("created_at", start).lte("created_at", end),
@@ -46,6 +46,8 @@ export async function fetchFinancialData(startDate: string, endDate: string): Pr
     supabase.from("clientes").select("id, nome, cpf_cnpj"),
     supabase.from("fornecedores").select("id, nome, cpf_cnpj"),
     supabase.from("activity_logs").select("entity_id, user_name, action").gte("created_at", start).lte("created_at", end),
+    supabase.from("pagamentos_entrada").select("*").eq("origem", "recebimento").gte("created_at", start).lte("created_at", end),
+    supabase.from("pagamentos_saida").select("*").not("divida_id", "is", null).gte("created_at", start).lte("created_at", end),
   ]);
 
   const vendas = vendasRes.data ?? [];
@@ -56,6 +58,8 @@ export async function fetchFinancialData(startDate: string, endDate: string): Pr
   const clientes = clientesRes.data ?? [];
   const fornecedores = fornecedoresRes.data ?? [];
   const activityLogs = logsRes.data ?? [];
+  const recebimentos = (pagEntradaRes.data ?? []).filter((p: any) => !p.cancelado);
+  const quitacoesSaida = (pagSaidaRes.data ?? []).filter((p: any) => !p.cancelado);
 
   const produtoMap = new Map(produtos.map(p => [p.id, p]));
   const userMap = new Map(users.map(u => [u.auth_user_id, u.name]));
@@ -194,6 +198,46 @@ export async function fetchFinancialData(startDate: string, endDate: string): Pr
     });
   }
 
+  // Process recebimentos (quitação de crédito de cliente)
+  const dividaMap = new Map(dividas.map((d: any) => [d.id, d]));
+  for (const r of recebimentos as any[]) {
+    const cInfo = clienteMap.get(r.cliente_id ?? "");
+    const clienteKey = (r.cliente_id || "").slice(0, 8);
+    rows.push({
+      dataHora: fmtDate(r.created_at),
+      usuario: logUserMap.get(`Pagamento Recebido:${clienteKey}`) || "-",
+      operacao: "Quitação Crédito",
+      clienteFornecedor: cInfo?.nome ?? "-",
+      cpfCnpj: cInfo?.cpf ?? "-",
+      sku: "-",
+      descricao: `Recebimento ${r.tipo === "total" ? "total" : "parcial"} de cliente`,
+      precoCompra: 0,
+      quantidade: 0,
+      valorTotal: Number(r.valor) || 0,
+      margemLucro: null,
+    });
+  }
+
+  // Process quitação de débito (saídas vinculadas a dívida)
+  for (const s of quitacoesSaida as any[]) {
+    const fInfo = s.fornecedor_id ? fornecedorMap.get(s.fornecedor_id) : null;
+    const divida: any = s.divida_id ? dividaMap.get(s.divida_id) : null;
+    const key = (s.divida_id || "").slice(0, 8);
+    rows.push({
+      dataHora: fmtDate(s.created_at),
+      usuario: logUserMap.get(`Dívida Quitada:${key}`) || "-",
+      operacao: "Quitação Débito",
+      clienteFornecedor: fInfo?.nome ?? (divida?.descricao ? "Despesa" : "-"),
+      cpfCnpj: fInfo?.cpf ?? "-",
+      sku: "-",
+      descricao: `Pagamento ${s.tipo === "total" ? "total" : "parcial"}${s.descricao ? ` — ${s.descricao}` : divida?.descricao ? ` — ${divida.descricao}` : ""}`,
+      precoCompra: 0,
+      quantidade: 0,
+      valorTotal: Number(s.valor) || 0,
+      margemLucro: null,
+    });
+  }
+
   // Sort by date descending
   rows.sort((a, b) => {
     const da = a.dataHora.split(" ")[0].split("/").reverse().join("") + a.dataHora.split(" ")[1];
@@ -299,6 +343,7 @@ export interface LogRow {
   acao: string;
   entidade: string;
   entidadeId: string;
+  clienteFornecedor: string;
   valor: number | null;
   descricao: string;
 }
@@ -307,26 +352,74 @@ export async function fetchLogsData(startDate: string, endDate: string): Promise
   const start = `${startDate}T00:00:00`;
   const end = `${endDate}T23:59:59`;
 
-  const { data } = await supabase
-    .from("activity_logs")
-    .select("*")
-    .gte("created_at", start)
-    .lte("created_at", end)
-    .order("created_at", { ascending: false })
-    .limit(1000);
+  const [logsRes, clientesRes, fornecedoresRes, dividasRes, vendasRes, pedidosRes] = await Promise.all([
+    supabase
+      .from("activity_logs")
+      .select("*")
+      .gte("created_at", start)
+      .lte("created_at", end)
+      .order("created_at", { ascending: false })
+      .limit(1000),
+    supabase.from("clientes").select("id, nome"),
+    supabase.from("fornecedores").select("id, nome"),
+    supabase.from("dividas_compra").select("id, fornecedor_id, descricao"),
+    supabase.from("vendas").select("id, cliente_id"),
+    supabase.from("pedidos").select("id, cliente_id"),
+  ]);
 
-  return (data ?? []).map(l => ({
+  const data = logsRes.data ?? [];
+  const clientes = clientesRes.data ?? [];
+  const fornecedores = fornecedoresRes.data ?? [];
+  const dividas = dividasRes.data ?? [];
+  const vendas = vendasRes.data ?? [];
+  const pedidos = pedidosRes.data ?? [];
+
+  // Build prefix maps (entity_id is stored as id.slice(0,8))
+  const clientePrefix = new Map<string, string>();
+  for (const c of clientes) clientePrefix.set(c.id.slice(0, 8), c.nome);
+  const fornecedorPrefix = new Map<string, string>();
+  for (const f of fornecedores) fornecedorPrefix.set(f.id.slice(0, 8), f.nome);
+
+  // Map dividas/vendas/pedidos prefix → cliente/fornecedor name
+  const dividaPrefixToFornecedor = new Map<string, string>();
+  for (const d of dividas) {
+    const fname = d.fornecedor_id ? fornecedorPrefix.get(d.fornecedor_id.slice(0, 8)) : null;
+    dividaPrefixToFornecedor.set(d.id.slice(0, 8), fname ?? (d.descricao ? "Despesa" : "-"));
+  }
+  const vendaPrefixToCliente = new Map<string, string>();
+  for (const v of vendas) {
+    const cname = v.cliente_id ? clientePrefix.get(v.cliente_id.slice(0, 8)) : null;
+    vendaPrefixToCliente.set(v.id.slice(0, 8), cname ?? "Consumidor");
+  }
+  const pedidoPrefixToCliente = new Map<string, string>();
+  for (const p of pedidos) {
+    const cname = p.cliente_id ? clientePrefix.get(p.cliente_id.slice(0, 8)) : null;
+    pedidoPrefixToCliente.set(p.id.slice(0, 8), cname ?? "-");
+  }
+
+  const resolveCF = (entity: string, entityId: string): string => {
+    const e = (entity || "").toLowerCase();
+    if (e === "cliente") return clientePrefix.get(entityId) ?? "-";
+    if (e === "fornecedor") return fornecedorPrefix.get(entityId) ?? "-";
+    if (e === "dívida" || e === "divida" || e === "compra") return dividaPrefixToFornecedor.get(entityId) ?? "-";
+    if (e === "venda") return vendaPrefixToCliente.get(entityId) ?? "-";
+    if (e === "pedido") return pedidoPrefixToCliente.get(entityId) ?? "-";
+    return "-";
+  };
+
+  return data.map(l => ({
     dataHora: fmtDate(l.created_at),
     usuario: l.user_name,
     acao: l.action,
     entidade: l.entity,
     entidadeId: l.entity_id,
+    clienteFornecedor: resolveCF(l.entity, l.entity_id),
     valor: l.amount,
     descricao: l.description,
   }));
 }
 
-const LOG_HEADERS = ["Data/Hora", "Usuario", "Acao", "Entidade", "ID", "Valor", "Descricao"];
+const LOG_HEADERS = ["Data/Hora", "Usuario", "Acao", "Entidade", "ID", "Cliente/Fornecedor", "Valor", "Descricao"];
 
 export async function generateLogsPDF(rows: LogRow[], startDate: string, endDate: string) {
   const jsPDFModule = await import("jspdf");
@@ -347,6 +440,7 @@ export async function generateLogsPDF(rows: LogRow[], startDate: string, endDate
     r.acao,
     r.entidade,
     r.entidadeId,
+    r.clienteFornecedor,
     r.valor != null ? brl(r.valor) : "-",
     r.descricao,
   ]);
@@ -358,7 +452,7 @@ export async function generateLogsPDF(rows: LogRow[], startDate: string, endDate
     styles: { fontSize: 6, cellPadding: 1.5 },
     headStyles: { fillColor: [41, 98, 255], fontSize: 6 },
     columnStyles: {
-      5: { halign: "right" },
+      6: { halign: "right" },
     },
     margin: { left: 6, right: 6 },
   });
@@ -375,6 +469,7 @@ export async function generateLogsXLS(rows: LogRow[], startDate: string, endDate
     "Ação": r.acao,
     "Entidade": r.entidade,
     "ID": r.entidadeId,
+    "Cliente/Fornecedor": r.clienteFornecedor,
     "Valor": r.valor ?? "",
     "Descrição": r.descricao,
   }));
@@ -383,14 +478,14 @@ export async function generateLogsXLS(rows: LogRow[], startDate: string, endDate
 
   const range = XLSX.utils.decode_range(ws["!ref"] ?? "A1");
   for (let R = range.s.r + 1; R <= range.e.r; R++) {
-    const addr = XLSX.utils.encode_cell({ r: R, c: 5 });
+    const addr = XLSX.utils.encode_cell({ r: R, c: 6 });
     if (ws[addr] && typeof ws[addr].v === "number") {
       ws[addr].z = 'R$ #,##0.00';
     }
   }
 
   ws["!cols"] = [
-    { wch: 18 }, { wch: 20 }, { wch: 22 }, { wch: 15 }, { wch: 15 }, { wch: 14 }, { wch: 50 },
+    { wch: 18 }, { wch: 20 }, { wch: 22 }, { wch: 15 }, { wch: 15 }, { wch: 22 }, { wch: 14 }, { wch: 50 },
   ];
 
   const wb = XLSX.utils.book_new();
