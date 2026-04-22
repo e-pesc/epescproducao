@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 export interface ReportRow {
   dataHora: string;
   usuario: string;
-  operacao: "Venda" | "Compra";
+  operacao: "Venda" | "Compra" | "Quitação Crédito" | "Quitação Débito";
   clienteFornecedor: string;
   cpfCnpj: string;
   sku: string;
