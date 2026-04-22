@@ -74,6 +74,8 @@ export function LogsPage({ onBack }: LogsPageProps) {
       });
     })();
   }, []);
+
+  const filtered = useMemo(() => {
     if (!search) return logs;
     const q = search.toLowerCase();
     return logs.filter(l =>
