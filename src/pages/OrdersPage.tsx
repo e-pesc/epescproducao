@@ -376,7 +376,7 @@ function OrderCard({ order, isPendente, pagoExtra, onEdit, onFulfill, onDelete, 
               const valorTotal = Number(order.valor_total);
               const valorPago = order.prepaid || order.pagamento === "avista"
                 ? valorTotal
-                : Number(order.entrada ?? 0);
+                : Number(order.entrada ?? 0) + (pagoExtra ?? 0);
               openWhatsappReceipt(client?.whatsapp, {
                 tipo: "Pedido",
                 peixaria: peixariaNome ?? undefined,
