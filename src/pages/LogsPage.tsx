@@ -202,6 +202,7 @@ export function LogsPage({ onBack }: LogsPageProps) {
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Usuário</th>
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Ação</th>
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Entidade/ID</th>
+                  <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Cliente/Fornecedor</th>
                   <th className="text-right px-4 py-3 font-semibold text-muted-foreground">Valor</th>
                   <th className="text-left px-4 py-3 font-semibold text-muted-foreground">Descrição</th>
                 </tr>
@@ -217,6 +218,7 @@ export function LogsPage({ onBack }: LogsPageProps) {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{log.entity_id ? `${log.entity}: ${log.entity_id}` : "—"}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{resolver(log.entity, log.entity_id) || "—"}</td>
                     <td className="px-4 py-3 text-right font-semibold text-primary">{log.amount != null ? formatBRL(log.amount) : "—"}</td>
                     <td className="px-4 py-3 text-muted-foreground max-w-xs truncate">{log.description}</td>
                   </tr>
