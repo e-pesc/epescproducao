@@ -9,7 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { CancelReasonModal } from "@/components/CancelReasonModal";
-import { ChevronLeft, ChevronRight, Calendar, History, Search, XCircle, MessageCircle } from "lucide-react";
+import { QuitacaoModal } from "@/components/QuitacaoModal";
+import { ChevronLeft, ChevronRight, Calendar, History, Search, XCircle, MessageCircle, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/format";
 import { openWhatsappReceipt } from "@/lib/whatsappReceipt";
@@ -23,7 +24,7 @@ interface Props {
 }
 
 export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
-  const { dividasCompra, cancelDivida, refetch } = useBilling();
+  const { dividasCompra, cancelDivida, payDivida, refetch } = useBilling();
   const { fornecedores } = useFornecedores();
   const { produtos, refetch: refetchProdutos } = useProdutos();
   const { role } = useAuth();
@@ -36,6 +37,7 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
   const [year, setYear] = useState(now.getFullYear());
   const [search, setSearch] = useState("");
   const [cancelTarget, setCancelTarget] = useState<DividaCompra[] | null>(null);
+  const [quitarTarget, setQuitarTarget] = useState<DividaCompra[] | null>(null);
 
   useEffect(() => {
     if (open) refetch();
