@@ -81,17 +81,8 @@ export function SalesHistoryModal({ open, onOpenChange }: Props) {
     if (!quitarTarget || !quitarTarget.cliente_id) return;
     try {
       await receiveFromClient(quitarTarget.cliente_id, amount, tipo);
-      // Vincula o pagamento a esta venda específica para rastreio
-      await supabase.from("pagamentos_entrada").insert({
-        cliente_id: quitarTarget.cliente_id,
-        origem: "recebimento",
-        venda_id: quitarTarget.id,
-        valor: 0, // marcador de vínculo (valor real já lançado por receiveFromClient)
-        tipo: "vinculo",
-        peixaria_id: quitarTarget.peixaria_id,
-      }).then(() => {}).catch(() => {});
       await Promise.all([refetch(), refetchBilling()]);
-      toast({ title: tipo === "total" ? "Venda quitada" : "Pagamento parcial registrado", description: formatBRL(amount) });
+      toast({ title: tipo === "total" ? "Débito quitado" : "Pagamento parcial registrado", description: formatBRL(amount) });
       setQuitarTarget(null);
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
