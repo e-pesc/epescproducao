@@ -298,22 +298,4 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
     </>
   );
 }
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </SlideUpModal>
 
-      {cancelTarget && (
-        <CancelReasonModal
-          open={!!cancelTarget}
-          onOpenChange={(o) => !o && setCancelTarget(null)}
-          title={`Cancelar compra — ${formatBRL(cancelTarget.reduce((acc, d) => acc + Number(d.valor_total), 0))}`}
-          onConfirm={handleCancel}
-        />
-      )}
-    </>
-  );
-}
