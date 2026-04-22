@@ -198,6 +198,46 @@ export async function fetchFinancialData(startDate: string, endDate: string): Pr
     });
   }
 
+  // Process recebimentos (quitação de crédito de cliente)
+  const dividaMap = new Map(dividas.map((d: any) => [d.id, d]));
+  for (const r of recebimentos as any[]) {
+    const cInfo = clienteMap.get(r.cliente_id ?? "");
+    const clienteKey = (r.cliente_id || "").slice(0, 8);
+    rows.push({
+      dataHora: fmtDate(r.created_at),
+      usuario: logUserMap.get(`Pagamento Recebido:${clienteKey}`) || "-",
+      operacao: "Quitação Crédito",
+      clienteFornecedor: cInfo?.nome ?? "-",
+      cpfCnpj: cInfo?.cpf ?? "-",
+      sku: "-",
+      descricao: `Recebimento ${r.tipo === "total" ? "total" : "parcial"} de cliente`,
+      precoCompra: 0,
+      quantidade: 0,
+      valorTotal: Number(r.valor) || 0,
+      margemLucro: null,
+    });
+  }
+
+  // Process quitação de débito (saídas vinculadas a dívida)
+  for (const s of quitacoesSaida as any[]) {
+    const fInfo = s.fornecedor_id ? fornecedorMap.get(s.fornecedor_id) : null;
+    const divida: any = s.divida_id ? dividaMap.get(s.divida_id) : null;
+    const key = (s.divida_id || "").slice(0, 8);
+    rows.push({
+      dataHora: fmtDate(s.created_at),
+      usuario: logUserMap.get(`Dívida Quitada:${key}`) || "-",
+      operacao: "Quitação Débito",
+      clienteFornecedor: fInfo?.nome ?? (divida?.descricao ? "Despesa" : "-"),
+      cpfCnpj: fInfo?.cpf ?? "-",
+      sku: "-",
+      descricao: `Pagamento ${s.tipo === "total" ? "total" : "parcial"}${s.descricao ? ` — ${s.descricao}` : divida?.descricao ? ` — ${divida.descricao}` : ""}`,
+      precoCompra: 0,
+      quantidade: 0,
+      valorTotal: Number(s.valor) || 0,
+      margemLucro: null,
+    });
+  }
+
   // Sort by date descending
   rows.sort((a, b) => {
     const da = a.dataHora.split(" ")[0].split("/").reverse().join("") + a.dataHora.split(" ")[1];
