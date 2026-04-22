@@ -58,6 +58,8 @@ export async function fetchFinancialData(startDate: string, endDate: string): Pr
   const clientes = clientesRes.data ?? [];
   const fornecedores = fornecedoresRes.data ?? [];
   const activityLogs = logsRes.data ?? [];
+  const recebimentos = (pagEntradaRes.data ?? []).filter((p: any) => !p.cancelado);
+  const quitacoesSaida = (pagSaidaRes.data ?? []).filter((p: any) => !p.cancelado);
 
   const produtoMap = new Map(produtos.map(p => [p.id, p]));
   const userMap = new Map(users.map(u => [u.auth_user_id, u.name]));
