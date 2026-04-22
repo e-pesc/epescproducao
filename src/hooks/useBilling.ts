@@ -309,7 +309,12 @@ export function useBilling() {
     await invalidateAll();
   };
 
-  const receiveFromClient = async (clienteId: string, amount: number, tipo: "total" | "parcial") => {
+  const receiveFromClient = async (
+    clienteId: string,
+    amount: number,
+    tipo: "total" | "parcial",
+    refs?: { venda_id?: string | null; pedido_id?: string | null }
+  ) => {
     const { data: cliente } = await supabase.from("clientes").select("debito").eq("id", clienteId).single();
     if (!cliente) return;
 
@@ -321,6 +326,8 @@ export function useBilling() {
       origem: "recebimento",
       valor: amount,
       tipo,
+      venda_id: refs?.venda_id ?? null,
+      pedido_id: refs?.pedido_id ?? null,
       peixaria_id: peixariaId,
     });
 
