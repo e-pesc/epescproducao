@@ -202,8 +202,13 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
                         );
                       })}
                     </div>
-                    {!allCancelled && totalPago > 0 && (
-                      <p className="text-[11px] text-muted-foreground">Pago: {formatBRL(totalPago)}</p>
+                    {!allCancelled && (
+                      <div className="rounded-2xl bg-muted px-3 py-2 mt-2 flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Pago: <span className="font-semibold text-foreground">{formatBRL(totalPago)}</span></span>
+                        <span className={cn("font-bold", allQuitado ? "text-fish-treated" : "text-amber-600")}>
+                          {allQuitado ? "Quitada" : `Saldo: ${formatBRL(+(totalCompra - totalPago).toFixed(2))}`}
+                        </span>
+                      </div>
                     )}
                     {allCancelled && motivo && (
                       <div className="rounded-2xl bg-destructive/10 border border-destructive/20 p-2 text-xs text-foreground mt-2">

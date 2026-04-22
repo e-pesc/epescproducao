@@ -322,6 +322,19 @@ function OrderCard({ order, isPendente, pagoExtra, onEdit, onFulfill, onDelete, 
           );
         })}
       </div>
+      {!isPendente && !isCancelled && order.pagamento === "prazo" && (() => {
+        const pago = Number(order.entrada ?? 0) + (pagoExtra ?? 0);
+        const saldo = +(Number(order.valor_total) - pago).toFixed(2);
+        const quitado = saldo <= 0;
+        return (
+          <div className="rounded-2xl bg-muted px-3 py-2 mb-2 flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">Pago: <span className="font-semibold text-foreground">{formatBRL(pago)}</span></span>
+            <span className={cn("font-bold", quitado ? "text-fish-treated" : "text-amber-600")}>
+              {quitado ? "Quitado" : `Saldo: ${formatBRL(saldo)}`}
+            </span>
+          </div>
+        );
+      })()}
       {isCancelled && order.cancelado_motivo && (
         <div className="rounded-2xl bg-destructive/10 border border-destructive/20 p-2 text-xs text-foreground mb-2">
           <span className="font-semibold">Motivo: </span>{order.cancelado_motivo}
@@ -470,9 +483,13 @@ export function OrdersPage() {
   const handleQuitar = async (amount: number, tipo: "total" | "parcial") => {
     if (!quitarTarget || !quitarTarget.cliente_id) return;
     try {
-      await receiveFromClient(quitarTarget.cliente_id, amount, tipo);
+      const pago = Number(quitarTarget.entrada ?? 0) + (pagoExtraByPedido.get(quitarTarget.id) ?? 0);
+      const saldo = +(Number(quitarTarget.valor_total) - pago).toFixed(2);
+      const valor = tipo === "total" ? saldo : amount;
+      // Usamos "parcial" no débito do cliente para não zerar dívidas de outros pedidos/vendas
+      await receiveFromClient(quitarTarget.cliente_id, valor, "parcial", { pedido_id: quitarTarget.id });
       await Promise.all([refetchPedidos(), refetchBilling()]);
-      toast({ title: tipo === "total" ? "Débito quitado" : "Pagamento parcial registrado", description: formatBRL(amount) });
+      toast({ title: tipo === "total" ? "Pedido quitado" : "Pagamento parcial registrado", description: formatBRL(valor) });
       setQuitarTarget(null);
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });

@@ -39,9 +39,49 @@ export interface ButtonProps
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, onClick, disabled, type, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
-    return <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />;
+    const [busy, setBusy] = React.useState(false);
+    const lastClickRef = React.useRef(0);
+
+    const handleClick = React.useCallback(
+      async (e: React.MouseEvent<HTMLButtonElement>) => {
+        if (!onClick) return;
+        // Debounce hard against rapid double clicks (600ms window)
+        const now = Date.now();
+        if (busy || now - lastClickRef.current < 600) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        lastClickRef.current = now;
+        try {
+          setBusy(true);
+          const result = (onClick as any)(e);
+          if (result && typeof (result as Promise<unknown>).then === "function") {
+            await result;
+          }
+        } finally {
+          // Small grace period so quick UI updates after the click don't allow another fire
+          setTimeout(() => setBusy(false), 250);
+        }
+      },
+      [onClick, busy]
+    );
+
+    // Default button type to "button" to avoid accidental form submits
+    const resolvedType = asChild ? type : type ?? "button";
+
+    return (
+      <Comp
+        className={cn(buttonVariants({ variant, size, className }))}
+        ref={ref}
+        onClick={onClick ? handleClick : undefined}
+        disabled={disabled || busy}
+        {...(asChild ? {} : { type: resolvedType })}
+        {...props}
+      />
+    );
   },
 );
 Button.displayName = "Button";

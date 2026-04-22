@@ -80,9 +80,15 @@ export function SalesHistoryModal({ open, onOpenChange }: Props) {
   const handleQuitar = async (amount: number, tipo: "total" | "parcial") => {
     if (!quitarTarget || !quitarTarget.cliente_id) return;
     try {
-      await receiveFromClient(quitarTarget.cliente_id, amount, tipo);
+      const saldo = +(Number(quitarTarget.valor_total) - pagoVenda(quitarTarget)).toFixed(2);
+      // Se o usuário escolheu "total", pagamos o saldo restante desta venda especificamente
+      const valor = tipo === "total" ? saldo : amount;
+      // Quando é total da venda mas o cliente tem outras dívidas, marcamos como parcial no cliente
+      // para não zerar o débito global. Só zera se o débito total = saldo desta venda.
+      const tipoCliente: "total" | "parcial" = "parcial";
+      await receiveFromClient(quitarTarget.cliente_id, valor, tipoCliente, { venda_id: quitarTarget.id });
       await Promise.all([refetch(), refetchBilling()]);
-      toast({ title: tipo === "total" ? "Débito quitado" : "Pagamento parcial registrado", description: formatBRL(amount) });
+      toast({ title: tipo === "total" ? "Venda quitada" : "Pagamento parcial registrado", description: formatBRL(valor) });
       setQuitarTarget(null);
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
@@ -115,6 +121,10 @@ export function SalesHistoryModal({ open, onOpenChange }: Props) {
               {filtered.map((v) => {
                 const cli = clientes.find((c) => c.id === v.cliente_id);
                 const isCancelled = !!v.cancelado;
+                const isPrazo = v.forma_pagamento === "prazo";
+                const pago = pagoVenda(v);
+                const saldo = +(Number(v.valor_total) - pago).toFixed(2);
+                const quitado = isPrazo && saldo <= 0;
                 return (
                   <div
                     key={v.id}
@@ -130,6 +140,8 @@ export function SalesHistoryModal({ open, onOpenChange }: Props) {
                         </h3>
                         {isCancelled ? (
                           <Badge className="bg-destructive hover:bg-destructive text-destructive-foreground text-[10px] px-2 py-0.5 font-bold">CANCELADA</Badge>
+                        ) : isPrazo && quitado ? (
+                          <Badge className="bg-fish-treated hover:bg-fish-treated text-white text-[10px] px-2 py-0.5 font-bold">QUITADA</Badge>
                         ) : (
                           <Badge className={cn(
                             "text-[10px] px-2 py-0.5 font-bold",
@@ -158,6 +170,14 @@ export function SalesHistoryModal({ open, onOpenChange }: Props) {
                         );
                       })}
                     </div>
+                    {!isCancelled && isPrazo && (
+                      <div className="rounded-2xl bg-muted px-3 py-2 mb-2 flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Pago: <span className="font-semibold text-foreground">{formatBRL(pago)}</span></span>
+                        <span className={cn("font-bold", quitado ? "text-fish-treated" : "text-amber-600")}>
+                          {quitado ? "Quitado" : `Saldo: ${formatBRL(saldo)}`}
+                        </span>
+                      </div>
+                    )}
                     {isCancelled && v.cancelado_motivo && (
                       <div className="rounded-2xl bg-destructive/10 border border-destructive/20 p-2 text-xs text-foreground">
                         <span className="font-semibold">Motivo: </span>{v.cancelado_motivo}
