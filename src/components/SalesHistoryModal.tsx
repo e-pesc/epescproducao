@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { CancelReasonModal } from "@/components/CancelReasonModal";
-import { ChevronLeft, ChevronRight, Calendar, History, Search, XCircle, MessageCircle } from "lucide-react";
+import { QuitacaoModal } from "@/components/QuitacaoModal";
+import { ChevronLeft, ChevronRight, Calendar, History, Search, XCircle, MessageCircle, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatBRL } from "@/lib/format";
 import { openWhatsappReceipt } from "@/lib/whatsappReceipt";
@@ -28,7 +29,7 @@ export function SalesHistoryModal({ open, onOpenChange }: Props) {
   const { vendas, cancelVenda, refetch } = useVendas();
   const { clientes } = useClientes();
   const { produtos, refetch: refetchProdutos } = useProdutos();
-  const { refetch: refetchBilling } = useBilling();
+  const { refetch: refetchBilling, receiveFromClient, pagamentosEntrada } = useBilling();
   const { role } = useAuth();
   const { nome: peixariaNome } = usePeixariaInfo();
   const { toast } = useToast();
@@ -39,6 +40,7 @@ export function SalesHistoryModal({ open, onOpenChange }: Props) {
   const [year, setYear] = useState(now.getFullYear());
   const [search, setSearch] = useState("");
   const [cancelTarget, setCancelTarget] = useState<Venda | null>(null);
+  const [quitarTarget, setQuitarTarget] = useState<Venda | null>(null);
 
   useEffect(() => {
     if (open) refetch();
@@ -64,6 +66,36 @@ export function SalesHistoryModal({ open, onOpenChange }: Props) {
     await Promise.all([refetch(), refetchProdutos(), refetchBilling()]);
     toast({ title: "Venda cancelada", description: "Estoque, entradas e débitos foram estornados." });
     setCancelTarget(null);
+  };
+
+  // Quanto já foi pago para uma venda a prazo (entrada + recebimentos posteriores deste cliente associados)
+  const pagoVenda = (v: Venda) => {
+    const entrada = Number(v.entrada ?? 0);
+    const recebimentos = pagamentosEntrada
+      .filter((p) => !p.cancelado && p.venda_id === v.id)
+      .reduce((acc, p) => acc + Number(p.valor), 0);
+    return +(entrada + recebimentos).toFixed(2);
+  };
+
+  const handleQuitar = async (amount: number, tipo: "total" | "parcial") => {
+    if (!quitarTarget || !quitarTarget.cliente_id) return;
+    try {
+      await receiveFromClient(quitarTarget.cliente_id, amount, tipo);
+      // Vincula o pagamento a esta venda específica para rastreio
+      await supabase.from("pagamentos_entrada").insert({
+        cliente_id: quitarTarget.cliente_id,
+        origem: "recebimento",
+        venda_id: quitarTarget.id,
+        valor: 0, // marcador de vínculo (valor real já lançado por receiveFromClient)
+        tipo: "vinculo",
+        peixaria_id: quitarTarget.peixaria_id,
+      }).then(() => {}).catch(() => {});
+      await Promise.all([refetch(), refetchBilling()]);
+      toast({ title: tipo === "total" ? "Venda quitada" : "Pagamento parcial registrado", description: formatBRL(amount) });
+      setQuitarTarget(null);
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    }
   };
 
   return (
