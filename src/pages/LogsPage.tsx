@@ -33,8 +33,47 @@ export function LogsPage({ onBack }: LogsPageProps) {
   const [filterAction, setFilterAction] = useState("");
   const [filterStart, setFilterStart] = useState("");
   const [filterEnd, setFilterEnd] = useState("");
+  const [resolver, setResolver] = useState<(entity: string, entityId: string) => string>(() => () => "-");
 
-  const filtered = useMemo(() => {
+  useEffect(() => {
+    (async () => {
+      const [c, f, d, v, p] = await Promise.all([
+        supabase.from("clientes").select("id, nome"),
+        supabase.from("fornecedores").select("id, nome"),
+        supabase.from("dividas_compra").select("id, fornecedor_id, descricao"),
+        supabase.from("vendas").select("id, cliente_id"),
+        supabase.from("pedidos").select("id, cliente_id"),
+      ]);
+      const clientePrefix = new Map<string, string>();
+      for (const x of c.data ?? []) clientePrefix.set(x.id.slice(0, 8), x.nome);
+      const fornecedorPrefix = new Map<string, string>();
+      for (const x of f.data ?? []) fornecedorPrefix.set(x.id.slice(0, 8), x.nome);
+      const dividaMap = new Map<string, string>();
+      for (const x of d.data ?? []) {
+        const fname = x.fornecedor_id ? fornecedorPrefix.get(x.fornecedor_id.slice(0, 8)) : null;
+        dividaMap.set(x.id.slice(0, 8), fname ?? (x.descricao ? "Despesa" : "-"));
+      }
+      const vendaMap = new Map<string, string>();
+      for (const x of v.data ?? []) {
+        const cname = x.cliente_id ? clientePrefix.get(x.cliente_id.slice(0, 8)) : null;
+        vendaMap.set(x.id.slice(0, 8), cname ?? "Consumidor");
+      }
+      const pedidoMap = new Map<string, string>();
+      for (const x of p.data ?? []) {
+        const cname = x.cliente_id ? clientePrefix.get(x.cliente_id.slice(0, 8)) : null;
+        pedidoMap.set(x.id.slice(0, 8), cname ?? "-");
+      }
+      setResolver(() => (entity: string, entityId: string) => {
+        const e = (entity || "").toLowerCase();
+        if (e === "cliente") return clientePrefix.get(entityId) ?? "-";
+        if (e === "fornecedor") return fornecedorPrefix.get(entityId) ?? "-";
+        if (e === "dívida" || e === "divida" || e === "compra") return dividaMap.get(entityId) ?? "-";
+        if (e === "venda") return vendaMap.get(entityId) ?? "-";
+        if (e === "pedido") return pedidoMap.get(entityId) ?? "-";
+        return "-";
+      });
+    })();
+  }, []);
     if (!search) return logs;
     const q = search.toLowerCase();
     return logs.filter(l =>
