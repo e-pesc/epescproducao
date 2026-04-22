@@ -470,9 +470,13 @@ export function OrdersPage() {
   const handleQuitar = async (amount: number, tipo: "total" | "parcial") => {
     if (!quitarTarget || !quitarTarget.cliente_id) return;
     try {
-      await receiveFromClient(quitarTarget.cliente_id, amount, tipo);
+      const pago = Number(quitarTarget.entrada ?? 0) + (pagoExtraByPedido.get(quitarTarget.id) ?? 0);
+      const saldo = +(Number(quitarTarget.valor_total) - pago).toFixed(2);
+      const valor = tipo === "total" ? saldo : amount;
+      // Usamos "parcial" no débito do cliente para não zerar dívidas de outros pedidos/vendas
+      await receiveFromClient(quitarTarget.cliente_id, valor, "parcial", { pedido_id: quitarTarget.id });
       await Promise.all([refetchPedidos(), refetchBilling()]);
-      toast({ title: tipo === "total" ? "Débito quitado" : "Pagamento parcial registrado", description: formatBRL(amount) });
+      toast({ title: tipo === "total" ? "Pedido quitado" : "Pagamento parcial registrado", description: formatBRL(valor) });
       setQuitarTarget(null);
     } catch (e: any) {
       toast({ title: "Erro", description: e.message, variant: "destructive" });
