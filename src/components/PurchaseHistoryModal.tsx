@@ -252,12 +252,52 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
                       >
                         <MessageCircle className="w-4 h-4" /> WhatsApp
                       </Button>
+                      {!allCancelled && !allQuitado && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 rounded-2xl gap-1.5 border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
+                          onClick={() => setQuitarTarget(group)}
+                        >
+                          <DollarSign className="w-4 h-4" /> Quitar
+                        </Button>
+                      )}
                       {!allCancelled && isAdmin && (
                         <Button variant="outline" size="sm" className="flex-1 rounded-2xl text-destructive border-destructive/40 hover:bg-destructive/10" onClick={() => setCancelTarget(group)}>
                           <XCircle className="w-4 h-4" /> Cancelar
                         </Button>
                       )}
                     </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </SlideUpModal>
+
+      {cancelTarget && (
+        <CancelReasonModal
+          open={!!cancelTarget}
+          onOpenChange={(o) => !o && setCancelTarget(null)}
+          title={`Cancelar compra — ${formatBRL(cancelTarget.reduce((acc, d) => acc + Number(d.valor_total), 0))}`}
+          onConfirm={handleCancel}
+        />
+      )}
+
+      {quitarTarget && (
+        <QuitacaoModal
+          open={!!quitarTarget}
+          onOpenChange={(o) => !o && setQuitarTarget(null)}
+          title="Quitar Compra"
+          totalDevido={quitarTarget.reduce((acc, d) => acc + Number(d.valor_total), 0)}
+          jaPago={quitarTarget.reduce((acc, d) => acc + Number(d.valor_pago ?? 0), 0)}
+          onConfirm={handleQuitar}
+        />
+      )}
+    </>
+  );
+}
                   </div>
                 );
               })}
