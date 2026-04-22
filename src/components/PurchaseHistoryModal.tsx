@@ -91,6 +91,37 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
     }
   };
 
+  const handleQuitar = async (amount: number, tipo: "total" | "parcial") => {
+    if (!quitarTarget || quitarTarget.length === 0) return;
+    try {
+      // Distribui o valor pago proporcionalmente entre as dívidas em aberto do grupo
+      const abertas = quitarTarget.filter((d) => !d.cancelado && !d.quitado);
+      const saldoTotal = abertas.reduce((acc, d) => acc + Math.max(0, Number(d.valor_total) - Number(d.valor_pago ?? 0)), 0);
+      if (saldoTotal <= 0) return;
+
+      let restante = amount;
+      for (let i = 0; i < abertas.length; i++) {
+        const d = abertas[i];
+        const saldoDivida = +(Number(d.valor_total) - Number(d.valor_pago ?? 0)).toFixed(2);
+        if (saldoDivida <= 0) continue;
+        // Última: usa todo o restante; senão, proporcional
+        const isLast = i === abertas.length - 1;
+        const aPagar = isLast
+          ? Math.min(restante, saldoDivida)
+          : Math.min(saldoDivida, +((amount * saldoDivida) / saldoTotal).toFixed(2));
+        if (aPagar <= 0) continue;
+        const isQuitarTotal = tipo === "total" || aPagar >= saldoDivida;
+        await payDivida(d.id, aPagar, isQuitarTotal ? "total" : "adiantamento");
+        restante = +(restante - aPagar).toFixed(2);
+      }
+      await refetch();
+      toast({ title: tipo === "total" ? "Compra quitada" : "Pagamento parcial registrado", description: formatBRL(amount) });
+      setQuitarTarget(null);
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    }
+  };
+
   return (
     <>
       <SlideUpModal open={open} onOpenChange={onOpenChange} title="Histórico de Compras">
