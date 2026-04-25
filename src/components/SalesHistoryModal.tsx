@@ -204,6 +204,21 @@ export function SalesHistoryModal({ open, onOpenChange }: Props) {
                           const valor_pago = v.forma_pagamento === "avista"
                             ? Number(v.valor_total)
                             : pago;
+                          // Lista de pagamentos: entrada inicial (se houver) + recebimentos posteriores
+                          const pagamentosLista: { data: string | Date; valor: number; rotulo?: string }[] = [];
+                          if (v.forma_pagamento === "prazo" && Number(v.entrada ?? 0) > 0) {
+                            pagamentosLista.push({ data: v.created_at, valor: Number(v.entrada), rotulo: "Entrada" });
+                          }
+                          pagamentosEntrada
+                            .filter((p) => !p.cancelado && p.venda_id === v.id && p.origem === "recebimento")
+                            .forEach((p) => pagamentosLista.push({
+                              data: p.created_at,
+                              valor: Number(p.valor),
+                              rotulo: p.tipo === "total" ? "Quitação total" : "Quitação parcial",
+                            }));
+                          if (v.forma_pagamento === "avista" && pagamentosLista.length === 0) {
+                            pagamentosLista.push({ data: v.created_at, valor: Number(v.valor_total), rotulo: "À vista" });
+                          }
                           openWhatsappReceipt(cli?.whatsapp, {
                             tipo: "Venda",
                             peixaria: peixariaNome ?? undefined,
@@ -215,6 +230,7 @@ export function SalesHistoryModal({ open, onOpenChange }: Props) {
                             }),
                             valor_total: Number(v.valor_total),
                             valor_pago,
+                            pagamentos: pagamentosLista,
                           });
                         }}
                       >

@@ -10,11 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SlideUpModal } from "@/components/SlideUpModal";
-import { Wallet, Calendar, ArrowDownCircle, FileText, ChevronLeft, ChevronRight, Plus, Receipt } from "lucide-react";
+import { Wallet, Calendar, ArrowDownCircle, FileText, ChevronLeft, ChevronRight, Plus, Receipt, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { formatBRL } from "@/lib/format";
+import { CancelReasonModal } from "@/components/CancelReasonModal";
 
 // ─── Card Skeleton ───
 function CardSkeleton() {
@@ -198,6 +199,7 @@ function TabAPagar({ filterMonth, filterYear }: { filterMonth: number; filterYea
   const { fornecedores } = useFornecedores();
   const { produtos } = useProdutos();
   const [payingDebt, setPayingDebt] = useState<DividaCompra | undefined>();
+  const [expenseOpen, setExpenseOpen] = useState(false);
 
   const openDebts = dividasCompra.filter((d) => {
     if (d.quitado) return false;
@@ -205,11 +207,15 @@ function TabAPagar({ filterMonth, filterYear }: { filterMonth: number; filterYea
     return dt.getMonth() === filterMonth && dt.getFullYear() === filterYear;
   });
 
-  if (loading) return <ListSkeleton />;
-
   return (
-    <>
-      {openDebts.length === 0 ? <EmptyState text="Nenhuma dívida pendente com fornecedores" /> : (
+    <div className="space-y-3">
+      <Button
+        onClick={() => setExpenseOpen(true)}
+        className="w-full rounded-2xl gap-2 bg-amber-400 text-foreground hover:bg-amber-400/90"
+      >
+        <Receipt className="w-4 h-4" /> Lançar Despesa
+      </Button>
+      {loading ? <ListSkeleton /> : openDebts.length === 0 ? <EmptyState text="Nenhuma dívida pendente com fornecedores" /> : (
         <div className="space-y-3">
           {openDebts.map((debt) => {
             const supplier = debt.fornecedor_id ? fornecedores.find((s) => s.id === debt.fornecedor_id) : null;
@@ -247,7 +253,8 @@ function TabAPagar({ filterMonth, filterYear }: { filterMonth: number; filterYea
         </div>
       )}
       {payingDebt && <PayDebtModal open={!!payingDebt} onOpenChange={(o) => !o && setPayingDebt(undefined)} debt={payingDebt} />}
-    </>
+      <ExpenseModal open={expenseOpen} onOpenChange={setExpenseOpen} />
+    </div>
   );
 }
 
@@ -493,9 +500,10 @@ function ExpenseModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
 
 // ─── Tab: Saídas ───
 function TabSaidas({ filterMonth, filterYear }: { filterMonth: number; filterYear: number }) {
-  const { pagamentosSaida, loading } = useBilling();
+  const { pagamentosSaida, loading, cancelDespesa } = useBilling();
   const { fornecedores } = useFornecedores();
-  const [expenseOpen, setExpenseOpen] = useState(false);
+  const { toast } = useToast();
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; label: string } | null>(null);
 
   const sorted = useMemo(() => pagamentosSaida
     .filter((p) => { const d = new Date(p.created_at); return d.getMonth() === filterMonth && d.getFullYear() === filterYear; })
@@ -503,45 +511,71 @@ function TabSaidas({ filterMonth, filterYear }: { filterMonth: number; filterYea
 
   return (
     <div className="space-y-3">
-      <Button
-        onClick={() => setExpenseOpen(true)}
-        className="w-full rounded-2xl gap-2 bg-amber-400 text-foreground hover:bg-amber-400/90"
-      >
-        <Receipt className="w-4 h-4" /> Lançar Despesa
-      </Button>
       {loading ? <ListSkeleton /> : sorted.length === 0 ? <EmptyState text="Nenhum pagamento registrado" /> : (
         <div className="space-y-3">
           {sorted.map((p) => {
             const supplier = p.fornecedor_id ? fornecedores.find((s) => s.id === p.fornecedor_id) : null;
             const label = supplier?.nome || p.descricao || "Despesa";
+            const isCancelled = !!p.cancelado;
+            const isAvulsa = !p.fornecedor_id && !!p.descricao;
             return (
-              <div key={p.id} className="rounded-3xl bg-card p-4 shadow-sm border-l-4 border-l-destructive/50">
+              <div key={p.id} className={cn(
+                "rounded-3xl bg-card p-4 shadow-sm border-l-4",
+                isCancelled ? "border-l-destructive opacity-70" : "border-l-destructive/50"
+              )}>
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="font-semibold text-foreground text-sm">{label}</h3>
+                    <h3 className={cn("font-semibold text-foreground text-sm", isCancelled && "line-through")}>{label}</h3>
                     {!supplier && p.descricao && <p className="text-[10px] text-muted-foreground">Despesa avulsa</p>}
                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5"><Calendar className="w-3 h-3" /><span>{new Date(p.created_at).toLocaleDateString("pt-BR")}</span></div>
                   </div>
                   <div className="text-right">
-                    <span className="text-base font-bold text-destructive">- {formatBRL(Number(p.valor))}</span>
-                    <Badge className={cn("ml-2 text-[10px]", p.tipo === "total" ? "bg-primary" : "bg-amber-500")}>{p.tipo === "total" ? "TOTAL" : "PARCIAL"}</Badge>
+                    <span className={cn("text-base font-bold", isCancelled ? "text-muted-foreground line-through" : "text-destructive")}>- {formatBRL(Number(p.valor))}</span>
+                    {isCancelled ? (
+                      <Badge className="ml-2 text-[10px] bg-destructive hover:bg-destructive text-destructive-foreground">CANCELADO</Badge>
+                    ) : (
+                      <Badge className={cn("ml-2 text-[10px]", p.tipo === "total" ? "bg-primary" : "bg-amber-500")}>{p.tipo === "total" ? "TOTAL" : "PARCIAL"}</Badge>
+                    )}
                   </div>
                 </div>
+                {isAvulsa && !isCancelled && (
+                  <Button size="sm" variant="ghost" className="mt-2 h-8 text-xs text-destructive hover:bg-destructive/10 gap-1" onClick={() => setCancelTarget({ id: p.id, label })}>
+                    <X className="w-3.5 h-3.5" /> Cancelar lançamento
+                  </Button>
+                )}
               </div>
             );
           })}
         </div>
       )}
-      <ExpenseModal open={expenseOpen} onOpenChange={setExpenseOpen} />
+      {cancelTarget && (
+        <CancelReasonModal
+          open={!!cancelTarget}
+          onOpenChange={(o) => !o && setCancelTarget(null)}
+          title={`Cancelar despesa "${cancelTarget.label}"`}
+          description="O lançamento será marcado como CANCELADO e o valor será removido das Saídas. A ação ficará registrada nos logs."
+          onConfirm={async (motivo) => {
+            try {
+              await cancelDespesa(cancelTarget.id, motivo);
+              toast({ title: "Despesa cancelada" });
+            } catch (e: any) {
+              toast({ title: "Erro", description: e.message, variant: "destructive" });
+              throw e;
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
 
 // ─── Tab: Entradas ───
 function TabEntradas({ filterMonth, filterYear }: { filterMonth: number; filterYear: number }) {
-  const { pagamentosEntrada, loading } = useBilling();
+  const { pagamentosEntrada, loading, cancelReceita } = useBilling();
   const { clientes } = useClientes();
   const { produtos } = useProdutos();
+  const { toast } = useToast();
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; label: string } | null>(null);
 
   const sorted = useMemo(() => pagamentosEntrada
     .filter((p) => p.tipo !== "pendente")
@@ -568,6 +602,7 @@ function TabEntradas({ filterMonth, filterYear }: { filterMonth: number; filterY
         const product = produtos.find((pr) => pr.id === p.produto_id);
         const isCancelled = !!p.cancelado;
         const desc = receitaDesc(p.origem);
+        const isReceitaAvulsa = (p.origem || "").startsWith("receita:");
         return (
           <div key={p.id} className={cn(
             "rounded-3xl bg-card p-4 shadow-sm border-l-4",
@@ -589,9 +624,31 @@ function TabEntradas({ filterMonth, filterYear }: { filterMonth: number; filterY
                 )}
               </div>
             </div>
+            {isReceitaAvulsa && !isCancelled && (
+              <Button size="sm" variant="ghost" className="mt-2 h-8 text-xs text-destructive hover:bg-destructive/10 gap-1" onClick={() => setCancelTarget({ id: p.id, label: desc || "Receita" })}>
+                <X className="w-3.5 h-3.5" /> Cancelar lançamento
+              </Button>
+            )}
           </div>
         );
       })}
+      {cancelTarget && (
+        <CancelReasonModal
+          open={!!cancelTarget}
+          onOpenChange={(o) => !o && setCancelTarget(null)}
+          title={`Cancelar receita "${cancelTarget.label}"`}
+          description="O lançamento será marcado como CANCELADO e o valor será removido das Entradas. A ação ficará registrada nos logs."
+          onConfirm={async (motivo) => {
+            try {
+              await cancelReceita(cancelTarget.id, motivo);
+              toast({ title: "Receita cancelada" });
+            } catch (e: any) {
+              toast({ title: "Erro", description: e.message, variant: "destructive" });
+              throw e;
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

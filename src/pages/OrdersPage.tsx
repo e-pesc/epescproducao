@@ -250,8 +250,8 @@ function MonthNavigator({ month, year, onPrev, onNext, searchValue, onSearchChan
 }
 
 // ─── Order Card ───
-function OrderCard({ order, isPendente, pagoExtra, onEdit, onFulfill, onDelete, onCancel, onQuitar }: {
-  order: Pedido; isPendente: boolean; pagoExtra?: number; onEdit?: (o: Pedido) => void; onFulfill?: (o: Pedido) => void; onDelete?: (o: Pedido) => void; onCancel?: (o: Pedido) => void; onQuitar?: (o: Pedido) => void;
+function OrderCard({ order, isPendente, pagoExtra, recebimentos, onEdit, onFulfill, onDelete, onCancel, onQuitar }: {
+  order: Pedido; isPendente: boolean; pagoExtra?: number; recebimentos?: { data: string; valor: number; tipo: string }[]; onEdit?: (o: Pedido) => void; onFulfill?: (o: Pedido) => void; onDelete?: (o: Pedido) => void; onCancel?: (o: Pedido) => void; onQuitar?: (o: Pedido) => void;
 }) {
   const { clientes } = useClientes();
   const { produtos } = useProdutos();
@@ -377,6 +377,19 @@ function OrderCard({ order, isPendente, pagoExtra, onEdit, onFulfill, onDelete, 
               const valorPago = order.prepaid || order.pagamento === "avista"
                 ? valorTotal
                 : Number(order.entrada ?? 0) + (pagoExtra ?? 0);
+              const pagamentosLista: { data: string | Date; valor: number; rotulo?: string }[] = [];
+              if (order.prepaid || order.pagamento === "avista") {
+                pagamentosLista.push({ data: order.created_at, valor: valorTotal, rotulo: "À vista" });
+              } else {
+                if (Number(order.entrada ?? 0) > 0) {
+                  pagamentosLista.push({ data: order.created_at, valor: Number(order.entrada), rotulo: "Entrada" });
+                }
+                (recebimentos ?? []).forEach((r) => pagamentosLista.push({
+                  data: r.data,
+                  valor: r.valor,
+                  rotulo: r.tipo === "total" ? "Quitação total" : "Quitação parcial",
+                }));
+              }
               openWhatsappReceipt(client?.whatsapp, {
                 tipo: "Pedido",
                 peixaria: peixariaNome ?? undefined,
@@ -389,6 +402,7 @@ function OrderCard({ order, isPendente, pagoExtra, onEdit, onFulfill, onDelete, 
                 }),
                 valor_total: valorTotal,
                 valor_pago: valorPago,
+                pagamentos: pagamentosLista,
               });
             }}
           >
@@ -438,11 +452,21 @@ export function OrdersPage() {
     const map = new Map<string, number>();
     for (const p of pagamentosEntrada) {
       if (p.cancelado || !p.pedido_id) continue;
-      // entradas iniciais já foram registradas como tipo "parcial"/"total" no fulfill;
-      // recebimentos posteriores são tipo "parcial"/"total" com origem "recebimento"
       if (p.origem === "recebimento") {
         map.set(p.pedido_id, +(((map.get(p.pedido_id) ?? 0) + Number(p.valor))).toFixed(2));
       }
+    }
+    return map;
+  }, [pagamentosEntrada]);
+
+  // Lista detalhada de recebimentos por pedido (para o recibo de WhatsApp)
+  const recebimentosByPedido = useMemo(() => {
+    const map = new Map<string, { data: string; valor: number; tipo: string }[]>();
+    for (const p of pagamentosEntrada) {
+      if (p.cancelado || !p.pedido_id || p.origem !== "recebimento") continue;
+      const arr = map.get(p.pedido_id) ?? [];
+      arr.push({ data: p.created_at, valor: Number(p.valor), tipo: p.tipo });
+      map.set(p.pedido_id, arr);
     }
     return map;
   }, [pagamentosEntrada]);
@@ -541,6 +565,7 @@ export function OrdersPage() {
                   order={o}
                   isPendente={false}
                   pagoExtra={pagoExtraByPedido.get(o.id) ?? 0}
+                  recebimentos={recebimentosByPedido.get(o.id) ?? []}
                   onCancel={isAdmin && !o.cancelado ? (o) => setCancelTarget(o) : undefined}
                   onQuitar={!o.cancelado ? (o) => setQuitarTarget(o) : undefined}
                 />

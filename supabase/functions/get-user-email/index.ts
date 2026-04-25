@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
         });
       }
       authUserId = admin.auth_user_id;
-      const { data: u } = await adminClient.auth.admin.getUserById(authUserId);
+      const { data: u } = await adminClient.auth.admin.getUserById(authUserId!);
       return new Response(JSON.stringify({ email: u.user?.email ?? null, app_user_id: admin.id }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { data: u, error: uErr } = await adminClient.auth.admin.getUserById(authUserId);
+    const { data: u, error: uErr } = await adminClient.auth.admin.getUserById(authUserId!);
     if (uErr || !u.user) {
       return new Response(JSON.stringify({ error: "Email não encontrado" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -33,6 +33,9 @@ interface Peixaria {
   ativo: boolean;
   created_at: string;
   vendedor_root_id: string | null;
+  plano_gratuito?: boolean;
+  desconto_mensalidade?: number;
+  desconto_mes_referencia?: string | null;
 }
 
 interface PagamentoMensalidade {
@@ -136,19 +139,23 @@ export function PeixariasPage() {
   const prevMonth = () => { if (filterMonth === 0) { setFilterMonth(11); setFilterYear((y) => y - 1); } else setFilterMonth((m) => m - 1); };
   const nextMonth = () => { if (filterMonth === 11) { setFilterMonth(0); setFilterYear((y) => y + 1); } else setFilterMonth((m) => m + 1); };
 
-  // Commission per Root user (no mês filtrado)
+  // Comissão por Root (mês filtrado): apenas excedente do desconto sobre 59,90
+  // e somente quando o desconto se aplica AO MÊS filtrado (uso único, sem recorrência).
   const commissions = rootUsers.map((u) => {
     const peixariasDoRoot = peixarias.filter((p) => p.vendedor_root_id === u.id);
     let total = 0;
     let confirmed = 0;
     peixariasDoRoot.forEach((p) => {
-      const extra = Math.max(0, Number(p.mensalidade ?? 0) - MENSALIDADE_BASE);
+      const desconto = Number(p.desconto_mensalidade ?? 0);
+      const refMatch = p.desconto_mes_referencia === filterRef;
+      if (!refMatch) return;
+      const extra = Math.max(0, desconto - MENSALIDADE_BASE);
       if (extra <= 0) return;
       total += extra;
       if (isPagoMonth(p.id, filterRef)) confirmed += extra;
     });
     return { user: u, total, confirmed, count: peixariasDoRoot.length };
-  }).filter((c) => c.count > 0);
+  }).filter((c) => c.total > 0);
 
   const q = search.toLowerCase();
   const filtered = peixarias.filter(p =>
@@ -240,7 +247,10 @@ export function PeixariasPage() {
                         </div>
                       )}
                       <p className="text-xs text-muted-foreground">
-                        Pgto dia {p.dia_pagamento} • Mensalidade: R$ {(p.mensalidade ?? 0).toFixed(2)}
+                        Pgto dia {p.dia_pagamento} • {p.plano_gratuito ? <span className="font-semibold text-fish-treated">Plano Gratuito</span> : <>Mensalidade: R$ {(p.mensalidade ?? 0).toFixed(2)}</>}
+                        {!p.plano_gratuito && Number(p.desconto_mensalidade ?? 0) > 0 && p.desconto_mes_referencia === filterRef && (
+                          <> • <span className="text-amber-600">Desconto {formatBRL(Number(p.desconto_mensalidade))}</span></>
+                        )}
                       </p>
                       {vendedor && (
                         <p className="text-xs text-primary font-medium">Venda: {vendedor.name}</p>
@@ -340,6 +350,8 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
   const [mensalidade, setMensalidade] = useState(String(MENSALIDADE_BASE));
   const [vendaNegociada, setVendaNegociada] = useState(false);
   const [vendedorRootId, setVendedorRootId] = useState<string>("");
+  const [planoGratuito, setPlanoGratuito] = useState(false);
+  const [desconto, setDesconto] = useState("0");
   const [rootUsersList, setRootUsersList] = useState<AppUser[]>([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -365,6 +377,8 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
       setMensalidade(String(m));
       setVendaNegociada(!!editPeixaria?.vendedor_root_id || (m > MENSALIDADE_BASE));
       setVendedorRootId(editPeixaria?.vendedor_root_id ?? "");
+      setPlanoGratuito(!!editPeixaria?.plano_gratuito);
+      setDesconto(String(editPeixaria?.desconto_mensalidade ?? 0));
       setEmail("");
       setPassword("");
 
@@ -416,6 +430,23 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
       return;
     }
 
+    const descontoNum = planoGratuito ? 0 : Math.max(0, parseFloat(desconto) || 0);
+    // Se desconto > 0, registra o mês atual como referência (uso único). Quando edita e o desconto for limpo, zera a ref.
+    const currentMonthRef = getCurrentMonthRef();
+    // Preserva referência se o desconto não mudou de valor
+    let descontoMesRef: string | null = editPeixaria?.desconto_mes_referencia ?? null;
+    if (planoGratuito) {
+      descontoMesRef = null;
+    } else if (descontoNum > 0) {
+      const oldDesc = Number(editPeixaria?.desconto_mensalidade ?? 0);
+      // Novo desconto OU valor alterado => marca o mês atual
+      if (!editPeixaria || oldDesc !== descontoNum || !descontoMesRef) {
+        descontoMesRef = currentMonthRef;
+      }
+    } else {
+      descontoMesRef = null;
+    }
+
     const payload = {
       razao_social: razaoSocial.trim(),
       cpf_cnpj: cpfCnpj,
@@ -424,8 +455,11 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
       endereco: endereco.trim(),
       cidade: cidade.trim(),
       dia_pagamento: parseInt(diaPagamento) || 10,
-      mensalidade: parseFloat(mensalidade) || MENSALIDADE_BASE,
+      mensalidade: planoGratuito ? 0 : (parseFloat(mensalidade) || MENSALIDADE_BASE),
       vendedor_root_id: vendaNegociada && vendedorRootId ? vendedorRootId : null,
+      plano_gratuito: planoGratuito,
+      desconto_mensalidade: descontoNum,
+      desconto_mes_referencia: descontoMesRef,
     };
 
     if (editPeixaria) {
@@ -507,7 +541,7 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
           <Label>Valor da Mensalidade</Label>
           <Input
             type="text"
-            value={formatBRL(parseFloat(mensalidade) || MENSALIDADE_BASE)}
+            value={planoGratuito ? "Gratuito" : formatBRL(parseFloat(mensalidade) || MENSALIDADE_BASE)}
             disabled
             readOnly
             className="rounded-2xl h-12 bg-muted"
@@ -520,12 +554,56 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
         <div className="rounded-2xl border border-border p-3 space-y-3">
           <div className="flex items-center justify-between">
             <div>
+              <Label className="text-sm">Plano Gratuito</Label>
+              <p className="text-[11px] text-muted-foreground">Isenta esta peixaria de mensalidade</p>
+            </div>
+            <input
+              type="checkbox"
+              checked={planoGratuito}
+              onChange={(e) => {
+                setPlanoGratuito(e.target.checked);
+                if (e.target.checked) {
+                  setDesconto("0");
+                  setMensalidade("0");
+                  setVendaNegociada(false);
+                  setVendedorRootId("");
+                } else {
+                  setMensalidade(String(MENSALIDADE_BASE));
+                }
+              }}
+              className="w-5 h-5 accent-primary"
+            />
+          </div>
+        </div>
+
+        {!planoGratuito && (
+          <div className="rounded-2xl border border-border p-3 space-y-2">
+            <Label className="text-sm">Desconto na Mensalidade (mês atual)</Label>
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              value={desconto}
+              onChange={(e) => setDesconto(e.target.value)}
+              placeholder="0.00"
+              className="rounded-2xl h-12"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Aplicação única no mês atual. Excedente acima de {formatBRL(MENSALIDADE_BASE)} é creditado como comissão do Root negociador.
+            </p>
+          </div>
+        )}
+
+        <div className="rounded-2xl border border-border p-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
               <Label className="text-sm">Plano Negociado</Label>
               <p className="text-[11px] text-muted-foreground">Atribuir comissão a um usuário Root</p>
             </div>
             <input
               type="checkbox"
               checked={vendaNegociada}
+              disabled={planoGratuito}
               onChange={(e) => {
                 setVendaNegociada(e.target.checked);
                 if (!e.target.checked) {

@@ -429,6 +429,8 @@ export type Database = {
         Row: {
           cancelado: boolean
           cancelado_at: string | null
+          cancelado_motivo: string | null
+          cancelado_por: string | null
           cliente_id: string | null
           created_at: string
           id: string
@@ -444,6 +446,8 @@ export type Database = {
         Insert: {
           cancelado?: boolean
           cancelado_at?: string | null
+          cancelado_motivo?: string | null
+          cancelado_por?: string | null
           cliente_id?: string | null
           created_at?: string
           id?: string
@@ -459,6 +463,8 @@ export type Database = {
         Update: {
           cancelado?: boolean
           cancelado_at?: string | null
+          cancelado_motivo?: string | null
+          cancelado_por?: string | null
           cliente_id?: string | null
           created_at?: string
           id?: string
@@ -548,6 +554,8 @@ export type Database = {
         Row: {
           cancelado: boolean
           cancelado_at: string | null
+          cancelado_motivo: string | null
+          cancelado_por: string | null
           created_at: string
           descricao: string | null
           divida_id: string | null
@@ -560,6 +568,8 @@ export type Database = {
         Insert: {
           cancelado?: boolean
           cancelado_at?: string | null
+          cancelado_motivo?: string | null
+          cancelado_por?: string | null
           created_at?: string
           descricao?: string | null
           divida_id?: string | null
@@ -572,6 +582,8 @@ export type Database = {
         Update: {
           cancelado?: boolean
           cancelado_at?: string | null
+          cancelado_motivo?: string | null
+          cancelado_por?: string | null
           created_at?: string
           descricao?: string | null
           divida_id?: string | null
@@ -683,10 +695,13 @@ export type Database = {
           cidade: string
           cpf_cnpj: string
           created_at: string
+          desconto_mensalidade: number
+          desconto_mes_referencia: string | null
           dia_pagamento: number
           endereco: string
           id: string
           mensalidade: number
+          plano_gratuito: boolean
           proprietario: string
           razao_social: string
           updated_at: string
@@ -698,10 +713,13 @@ export type Database = {
           cidade?: string
           cpf_cnpj?: string
           created_at?: string
+          desconto_mensalidade?: number
+          desconto_mes_referencia?: string | null
           dia_pagamento?: number
           endereco?: string
           id?: string
           mensalidade?: number
+          plano_gratuito?: boolean
           proprietario?: string
           razao_social: string
           updated_at?: string
@@ -713,10 +731,13 @@ export type Database = {
           cidade?: string
           cpf_cnpj?: string
           created_at?: string
+          desconto_mensalidade?: number
+          desconto_mes_referencia?: string | null
           dia_pagamento?: number
           endereco?: string
           id?: string
           mensalidade?: number
+          plano_gratuito?: boolean
           proprietario?: string
           razao_social?: string
           updated_at?: string

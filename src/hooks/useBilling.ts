@@ -394,10 +394,66 @@ export function useBilling() {
     await queryClient.invalidateQueries({ queryKey: ["produtos"] });
   };
 
+  // ─── Cancelar despesa avulsa (saída sem fornecedor) ───
+  const cancelDespesa = async (pagamentoId: string, motivo: string) => {
+    const { data: pag } = await supabase.from("pagamentos_saida").select("*").eq("id", pagamentoId).single();
+    if (!pag) throw new Error("Despesa não encontrada");
+    if (pag.cancelado) throw new Error("Despesa já está cancelada");
+    if (pag.fornecedor_id) throw new Error("Use o cancelamento de compra para fornecedores");
+
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from("pagamentos_saida").update({
+      cancelado: true,
+      cancelado_at: new Date().toISOString(),
+      cancelado_motivo: motivo,
+      cancelado_por: user?.id ?? null,
+    }).eq("id", pagamentoId);
+
+    logActivity({
+      action: "Despesa Cancelada",
+      entity: "Despesa",
+      entity_id: pagamentoId.slice(0, 8),
+      amount: Number(pag.valor),
+      description: `Cancelamento de despesa "${pag.descricao ?? "—"}" — Motivo: ${motivo}`,
+      peixaria_id: peixariaId,
+    });
+
+    await invalidateAll();
+  };
+
+  // ─── Cancelar receita avulsa (entrada origem receita:* ou receita_pendente:*) ───
+  const cancelReceita = async (pagamentoId: string, motivo: string) => {
+    const { data: pag } = await supabase.from("pagamentos_entrada").select("*").eq("id", pagamentoId).single();
+    if (!pag) throw new Error("Receita não encontrada");
+    if (pag.cancelado) throw new Error("Receita já está cancelada");
+    const isReceitaAvulsa = (pag.origem || "").startsWith("receita:") || (pag.origem || "").startsWith("receita_pendente:");
+    if (!isReceitaAvulsa) throw new Error("Apenas receitas avulsas podem ser canceladas por aqui");
+
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from("pagamentos_entrada").update({
+      cancelado: true,
+      cancelado_at: new Date().toISOString(),
+      cancelado_motivo: motivo,
+      cancelado_por: user?.id ?? null,
+    }).eq("id", pagamentoId);
+
+    const desc = (pag.origem || "").replace(/^receita(_pendente)?:/, "");
+    logActivity({
+      action: "Receita Cancelada",
+      entity: "Receita",
+      entity_id: pagamentoId.slice(0, 8),
+      amount: Number(pag.valor),
+      description: `Cancelamento de receita "${desc}" — Motivo: ${motivo}`,
+      peixaria_id: peixariaId,
+    });
+
+    await invalidateAll();
+  };
+
   return {
     dividasCompra, pagamentosSaida, pagamentosEntrada, loading,
     addDividaCompra, payDivida, addPagamentoEntrada, addPagamentoSaida, receiveFromClient, cancelDivida,
-    addDespesa, addReceita, quitarReceita,
+    addDespesa, addReceita, quitarReceita, cancelDespesa, cancelReceita,
     refetch: invalidateAll,
   };
 }

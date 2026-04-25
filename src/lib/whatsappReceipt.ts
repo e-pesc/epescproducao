@@ -7,6 +7,12 @@ export interface ReceiptItem {
   preco_kg: number;
 }
 
+export interface ReceiptPayment {
+  data: string | Date;
+  valor: number;
+  rotulo?: string; // ex: "Entrada", "Quitação parcial"
+}
+
 export interface ReceiptData {
   tipo: "Venda" | "Compra" | "Pedido";
   numero?: string | number;
@@ -15,12 +21,18 @@ export interface ReceiptData {
   peixaria?: string;
   itens: ReceiptItem[];
   valor_total: number;
-  valor_pago: number; // Para à vista = valor_total. Para a prazo = entrada (pode ser 0).
+  valor_pago: number; // Total já pago (entrada + quitações). À vista = valor_total.
+  pagamentos?: ReceiptPayment[]; // Lista detalhada (opcional). Quando informada, é exibida no recibo a prazo.
 }
 
 function formatDate(d: string | Date): string {
   const date = typeof d === "string" ? new Date(d) : d;
   return date.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+}
+
+function formatShortDate(d: string | Date): string {
+  const date = typeof d === "string" ? new Date(d) : d;
+  return date.toLocaleDateString("pt-BR");
 }
 
 export function buildReceiptText(r: ReceiptData): string {
@@ -49,11 +61,34 @@ export function buildReceiptText(r: ReceiptData): string {
   lines.push("━━━━━━━━━━━━━━━━━━");
 
   if (aprazo) {
-    lines.push(`*Total:* ${formatBRL(r.valor_total)}`);
-    lines.push(`*Entrada paga:* ${formatBRL(r.valor_pago)}`);
-    lines.push(`💳 *VALOR EM DÉBITO: ${formatBRL(debito)}*`);
+    lines.push(`*Valor Total:* ${formatBRL(r.valor_total)}`);
+    if (r.pagamentos && r.pagamentos.length > 0) {
+      lines.push("");
+      lines.push("*Pagamentos realizados:*");
+      for (const p of r.pagamentos) {
+        const rot = p.rotulo ? ` (${p.rotulo})` : "";
+        lines.push(`• ${formatShortDate(p.data)} — ${formatBRL(p.valor)}${rot}`);
+      }
+      lines.push(`_Total pago: ${formatBRL(r.valor_pago)}_`);
+    } else if (r.valor_pago > 0) {
+      lines.push(`*Entrada paga:* ${formatBRL(r.valor_pago)}`);
+    }
+    lines.push("");
+    lines.push(`💳 *SALDO DEVEDOR: ${formatBRL(debito)}*`);
   } else {
-    lines.push(`✅ *TOTAL PAGO: ${formatBRL(r.valor_total)}*`);
+    if (r.pagamentos && r.pagamentos.length > 1) {
+      lines.push(`*Valor Total:* ${formatBRL(r.valor_total)}`);
+      lines.push("");
+      lines.push("*Pagamentos realizados:*");
+      for (const p of r.pagamentos) {
+        const rot = p.rotulo ? ` (${p.rotulo})` : "";
+        lines.push(`• ${formatShortDate(p.data)} — ${formatBRL(p.valor)}${rot}`);
+      }
+      lines.push("");
+      lines.push(`✅ *QUITADO: ${formatBRL(r.valor_total)}*`);
+    } else {
+      lines.push(`✅ *TOTAL PAGO: ${formatBRL(r.valor_total)}*`);
+    }
   }
   lines.push("");
   lines.push("_Obrigado pela preferência!_ 🐟");
