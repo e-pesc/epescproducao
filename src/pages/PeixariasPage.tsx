@@ -33,6 +33,9 @@ interface Peixaria {
   ativo: boolean;
   created_at: string;
   vendedor_root_id: string | null;
+  plano_gratuito?: boolean;
+  desconto_mensalidade?: number;
+  desconto_mes_referencia?: string | null;
 }
 
 interface PagamentoMensalidade {
