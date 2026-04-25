@@ -50,6 +50,10 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
   const grouped = useMemo(() => {
     const map = new Map<string, DividaCompra[]>();
     for (const d of dividasCompra) {
+      // Excluir despesas avulsas (lançadas via "Lançar Despesa" no Faturamento):
+      // não possuem fornecedor nem produto vinculado e não devem aparecer no
+      // Histórico de Compras (preserva acurácia do CMV).
+      if (!d.fornecedor_id && !d.produto_id) continue;
       const dt = new Date(d.created_at);
       if (dt.getMonth() !== month || dt.getFullYear() !== year) continue;
       const sec = Math.floor(dt.getTime() / 1000);
