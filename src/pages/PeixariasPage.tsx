@@ -251,6 +251,9 @@ export function PeixariasPage() {
             {filtered.map((p) => {
               const pago = isPagoMonth(p.id, filterRef);
               const vendedor = p.vendedor_root_id ? rootUsers.find((u) => u.id === p.vendedor_root_id) : null;
+              const valorCobrado = valorCobradoNoMes(p, filterRef);
+              const descontoAtivo = !p.plano_gratuito && Number(p.desconto_mensalidade ?? 0) > 0 && p.desconto_mes_referencia === filterRef;
+              const comissao = comissaoNoMes(p, filterRef);
               return (
                 <div key={p.id} className={cn("rounded-3xl bg-card p-4 shadow-sm", !p.ativo && "opacity-50")}>
                   <div className="flex items-start justify-between">
@@ -272,11 +275,16 @@ export function PeixariasPage() {
                         </div>
                       )}
                       <p className="text-xs text-muted-foreground">
-                        Pgto dia {p.dia_pagamento} • {p.plano_gratuito ? <span className="font-semibold text-fish-treated">Plano Gratuito</span> : <>Mensalidade: R$ {(p.mensalidade ?? 0).toFixed(2)}</>}
-                        {!p.plano_gratuito && Number(p.desconto_mensalidade ?? 0) > 0 && p.desconto_mes_referencia === filterRef && (
-                          <> • <span className="text-amber-600">Desconto {formatBRL(Number(p.desconto_mensalidade))}</span></>
+                        Pgto dia {p.dia_pagamento} • {p.plano_gratuito ? <span className="font-semibold text-fish-treated">Plano Gratuito</span> : <>Mensalidade: {formatBRL(valorCobrado)}</>}
+                        {descontoAtivo && (
+                          <> • <span className="text-amber-600">Desconto pontual</span></>
                         )}
                       </p>
+                      {!p.plano_gratuito && vendedor && (
+                        <p className="text-xs text-muted-foreground">
+                          Comissão do Vendedor: <span className={cn("font-semibold", comissao > 0 ? "text-fish-treated" : "text-foreground")}>{formatBRL(comissao)}</span>
+                        </p>
+                      )}
                       {vendedor && (
                         <p className="text-xs text-primary font-medium">Venda: {vendedor.name}</p>
                       )}
