@@ -713,7 +713,7 @@ export function FaturamentoPage() {
   const inMonth = (dateStr: string) => { const d = new Date(dateStr); return d.getMonth() === filterMonth && d.getFullYear() === filterYear; };
 
   const totalAPagar = useMemo(() => dividasCompra
-    .filter((d) => !d.quitado && inMonth(d.created_at))
+    .filter((d) => !d.quitado && !d.cancelado && inMonth(d.created_at))
     .reduce((sum, d) => sum + (Number(d.valor_total) - Number(d.valor_pago)), 0), [dividasCompra, filterMonth, filterYear]);
 
   const totalAReceber = useMemo(() => clientes
