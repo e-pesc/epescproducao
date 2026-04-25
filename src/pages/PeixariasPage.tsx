@@ -541,20 +541,6 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
           <Label>Valor da Mensalidade</Label>
           <Input
             type="text"
-            value={formatBRL(parseFloat(mensalidade) || MENSALIDADE_BASE)}
-            disabled
-            readOnly
-            className="rounded-2xl h-12 bg-muted"
-          />
-          <p className="text-[11px] text-muted-foreground mt-1">
-            Padrão: {formatBRL(MENSALIDADE_BASE)}.
-          </p>
-        </div>
-
-        <div>
-          <Label>Valor da Mensalidade</Label>
-          <Input
-            type="text"
             value={planoGratuito ? "Gratuito" : formatBRL(parseFloat(mensalidade) || MENSALIDADE_BASE)}
             disabled
             readOnly
