@@ -195,14 +195,17 @@ function EmptyState({ text }: { text: string }) {
 
 // ─── Tab: A Pagar ───
 function TabAPagar({ filterMonth, filterYear }: { filterMonth: number; filterYear: number }) {
-  const { dividasCompra, loading } = useBilling();
+  const { dividasCompra, loading, cancelDivida } = useBilling();
   const { fornecedores } = useFornecedores();
   const { produtos } = useProdutos();
+  const { toast } = useToast();
   const [payingDebt, setPayingDebt] = useState<DividaCompra | undefined>();
   const [expenseOpen, setExpenseOpen] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; label: string } | null>(null);
 
   const openDebts = dividasCompra.filter((d) => {
     if (d.quitado) return false;
+    if (d.cancelado) return false;
     const dt = new Date(d.created_at);
     return dt.getMonth() === filterMonth && dt.getFullYear() === filterYear;
   });
@@ -247,6 +250,11 @@ function TabAPagar({ filterMonth, filterYear }: { filterMonth: number; filterYea
                   <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(debt.created_at).toLocaleDateString("pt-BR")}</span>
                 </div>
                 <Button size="sm" className="w-full rounded-2xl" onClick={() => setPayingDebt(debt)}><Wallet className="w-4 h-4" /> Quitar</Button>
+                {isDespesa && (
+                  <Button size="sm" variant="ghost" className="mt-2 h-8 w-full text-xs text-destructive hover:bg-destructive/10 gap-1" onClick={() => setCancelTarget({ id: debt.id, label: debt.descricao || "Despesa" })}>
+                    <X className="w-3.5 h-3.5" /> Cancelar lançamento
+                  </Button>
+                )}
               </div>
             );
           })}
@@ -254,6 +262,23 @@ function TabAPagar({ filterMonth, filterYear }: { filterMonth: number; filterYea
       )}
       {payingDebt && <PayDebtModal open={!!payingDebt} onOpenChange={(o) => !o && setPayingDebt(undefined)} debt={payingDebt} />}
       <ExpenseModal open={expenseOpen} onOpenChange={setExpenseOpen} />
+      {cancelTarget && (
+        <CancelReasonModal
+          open={!!cancelTarget}
+          onOpenChange={(o) => !o && setCancelTarget(null)}
+          title={`Cancelar despesa "${cancelTarget.label}"`}
+          description="O lançamento será marcado como CANCELADO e removido de A Pagar. A ação ficará registrada nos logs."
+          onConfirm={async (motivo) => {
+            try {
+              await cancelDivida(cancelTarget.id, motivo);
+              toast({ title: "Despesa cancelada" });
+            } catch (e: any) {
+              toast({ title: "Erro", description: e.message, variant: "destructive" });
+              throw e;
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
