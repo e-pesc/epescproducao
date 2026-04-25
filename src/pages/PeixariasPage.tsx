@@ -143,24 +143,36 @@ export function PeixariasPage() {
   const prevMonth = () => { if (filterMonth === 0) { setFilterMonth(11); setFilterYear((y) => y - 1); } else setFilterMonth((m) => m - 1); };
   const nextMonth = () => { if (filterMonth === 11) { setFilterMonth(0); setFilterYear((y) => y + 1); } else setFilterMonth((m) => m + 1); };
 
-  // Comissão por Root (mês filtrado):
-  // - Sempre exibe Roots que possuem peixarias negociadas (auditoria).
-  // - Comissão só é contabilizada quando desconto > 59,90 (excedente).
-  // - Descontos ≤ 59,90 aparecem no histórico com comissão zerada.
+  // Valor cobrado no mês de referência:
+  // - Plano Gratuito → 0
+  // - Se há desconto pontual (desconto_mensalidade > 0) e a referência bate com o mês exibido → usa o desconto
+  // - Caso contrário → usa o valor contratual (mensalidade negociada ou base)
+  const valorCobradoNoMes = (p: Peixaria, ref: string): number => {
+    if (p.plano_gratuito) return 0;
+    const desc = Number(p.desconto_mensalidade ?? 0);
+    if (desc > 0 && p.desconto_mes_referencia === ref) return desc;
+    return Number(p.mensalidade ?? MENSALIDADE_BASE);
+  };
+
+  // Comissão do vendedor para uma peixaria em um mês = max(0, valorCobrado - 59,90)
+  const comissaoNoMes = (p: Peixaria, ref: string): number => {
+    if (p.plano_gratuito || !p.vendedor_root_id) return 0;
+    return Math.max(0, valorCobradoNoMes(p, ref) - MENSALIDADE_BASE);
+  };
+
+  // Comissão por Root (mês filtrado): excedente acima de 59,90 sobre o valor cobrado no mês
   const commissions = rootUsers.map((u) => {
     const peixariasDoRoot = peixarias.filter((p) => p.vendedor_root_id === u.id && !p.plano_gratuito);
     let total = 0;
     let confirmed = 0;
     let lancamentos = 0;
     peixariasDoRoot.forEach((p) => {
-      const desconto = Number(p.desconto_mensalidade ?? 0);
-      const refMatch = p.desconto_mes_referencia === filterRef;
-      if (!refMatch || desconto <= 0) return;
-      lancamentos += 1;
-      const extra = Math.max(0, desconto - MENSALIDADE_BASE);
-      if (extra <= 0) return;
-      total += extra;
-      if (isPagoMonth(p.id, filterRef)) confirmed += extra;
+      const extra = comissaoNoMes(p, filterRef);
+      if (extra > 0) {
+        lancamentos += 1;
+        total += extra;
+        if (isPagoMonth(p.id, filterRef)) confirmed += extra;
+      }
     });
     return { user: u, total, confirmed, count: peixariasDoRoot.length, lancamentos };
   }).filter((c) => c.count > 0);
@@ -239,6 +251,9 @@ export function PeixariasPage() {
             {filtered.map((p) => {
               const pago = isPagoMonth(p.id, filterRef);
               const vendedor = p.vendedor_root_id ? rootUsers.find((u) => u.id === p.vendedor_root_id) : null;
+              const valorCobrado = valorCobradoNoMes(p, filterRef);
+              const descontoAtivo = !p.plano_gratuito && Number(p.desconto_mensalidade ?? 0) > 0 && p.desconto_mes_referencia === filterRef;
+              const comissao = comissaoNoMes(p, filterRef);
               return (
                 <div key={p.id} className={cn("rounded-3xl bg-card p-4 shadow-sm", !p.ativo && "opacity-50")}>
                   <div className="flex items-start justify-between">
@@ -260,11 +275,16 @@ export function PeixariasPage() {
                         </div>
                       )}
                       <p className="text-xs text-muted-foreground">
-                        Pgto dia {p.dia_pagamento} • {p.plano_gratuito ? <span className="font-semibold text-fish-treated">Plano Gratuito</span> : <>Mensalidade: R$ {(p.mensalidade ?? 0).toFixed(2)}</>}
-                        {!p.plano_gratuito && Number(p.desconto_mensalidade ?? 0) > 0 && p.desconto_mes_referencia === filterRef && (
-                          <> • <span className="text-amber-600">Desconto {formatBRL(Number(p.desconto_mensalidade))}</span></>
+                        Pgto dia {p.dia_pagamento} • {p.plano_gratuito ? <span className="font-semibold text-fish-treated">Plano Gratuito</span> : <>Mensalidade: {formatBRL(valorCobrado)}</>}
+                        {descontoAtivo && (
+                          <> • <span className="text-amber-600">Desconto pontual</span></>
                         )}
                       </p>
+                      {!p.plano_gratuito && vendedor && (
+                        <p className="text-xs text-muted-foreground">
+                          Comissão do Vendedor: <span className={cn("font-semibold", comissao > 0 ? "text-fish-treated" : "text-foreground")}>{formatBRL(comissao)}</span>
+                        </p>
+                      )}
                       {vendedor && (
                         <p className="text-xs text-primary font-medium">Venda: {vendedor.name}</p>
                       )}
@@ -331,7 +351,7 @@ export function PeixariasPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar pagamento?</AlertDialogTitle>
             <AlertDialogDescription>
-              Confirmar o recebimento da mensalidade de <strong>R$ {(confirmTarget?.mensalidade ?? 0).toFixed(2)}</strong> de{" "}
+              Confirmar o recebimento da mensalidade de <strong>{formatBRL(confirmTarget ? valorCobradoNoMes(confirmTarget, filterRef) : 0)}</strong> de{" "}
               <strong>{confirmTarget?.razao_social}</strong> referente a {formatMonthLabel(filterRef)}?
             </AlertDialogDescription>
           </AlertDialogHeader>
