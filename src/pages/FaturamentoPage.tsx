@@ -199,6 +199,7 @@ function TabAPagar({ filterMonth, filterYear }: { filterMonth: number; filterYea
   const { fornecedores } = useFornecedores();
   const { produtos } = useProdutos();
   const [payingDebt, setPayingDebt] = useState<DividaCompra | undefined>();
+  const [expenseOpen, setExpenseOpen] = useState(false);
 
   const openDebts = dividasCompra.filter((d) => {
     if (d.quitado) return false;
@@ -206,11 +207,15 @@ function TabAPagar({ filterMonth, filterYear }: { filterMonth: number; filterYea
     return dt.getMonth() === filterMonth && dt.getFullYear() === filterYear;
   });
 
-  if (loading) return <ListSkeleton />;
-
   return (
-    <>
-      {openDebts.length === 0 ? <EmptyState text="Nenhuma dívida pendente com fornecedores" /> : (
+    <div className="space-y-3">
+      <Button
+        onClick={() => setExpenseOpen(true)}
+        className="w-full rounded-2xl gap-2 bg-amber-400 text-foreground hover:bg-amber-400/90"
+      >
+        <Receipt className="w-4 h-4" /> Lançar Despesa
+      </Button>
+      {loading ? <ListSkeleton /> : openDebts.length === 0 ? <EmptyState text="Nenhuma dívida pendente com fornecedores" /> : (
         <div className="space-y-3">
           {openDebts.map((debt) => {
             const supplier = debt.fornecedor_id ? fornecedores.find((s) => s.id === debt.fornecedor_id) : null;
@@ -248,7 +253,8 @@ function TabAPagar({ filterMonth, filterYear }: { filterMonth: number; filterYea
         </div>
       )}
       {payingDebt && <PayDebtModal open={!!payingDebt} onOpenChange={(o) => !o && setPayingDebt(undefined)} debt={payingDebt} />}
-    </>
+      <ExpenseModal open={expenseOpen} onOpenChange={setExpenseOpen} />
+    </div>
   );
 }
 
