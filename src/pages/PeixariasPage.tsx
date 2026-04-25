@@ -430,6 +430,23 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
       return;
     }
 
+    const descontoNum = planoGratuito ? 0 : Math.max(0, parseFloat(desconto) || 0);
+    // Se desconto > 0, registra o mês atual como referência (uso único). Quando edita e o desconto for limpo, zera a ref.
+    const currentMonthRef = getCurrentMonthRef();
+    // Preserva referência se o desconto não mudou de valor
+    let descontoMesRef: string | null = editPeixaria?.desconto_mes_referencia ?? null;
+    if (planoGratuito) {
+      descontoMesRef = null;
+    } else if (descontoNum > 0) {
+      const oldDesc = Number(editPeixaria?.desconto_mensalidade ?? 0);
+      // Novo desconto OU valor alterado => marca o mês atual
+      if (!editPeixaria || oldDesc !== descontoNum || !descontoMesRef) {
+        descontoMesRef = currentMonthRef;
+      }
+    } else {
+      descontoMesRef = null;
+    }
+
     const payload = {
       razao_social: razaoSocial.trim(),
       cpf_cnpj: cpfCnpj,
@@ -438,8 +455,11 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
       endereco: endereco.trim(),
       cidade: cidade.trim(),
       dia_pagamento: parseInt(diaPagamento) || 10,
-      mensalidade: parseFloat(mensalidade) || MENSALIDADE_BASE,
+      mensalidade: planoGratuito ? 0 : (parseFloat(mensalidade) || MENSALIDADE_BASE),
       vendedor_root_id: vendaNegociada && vendedorRootId ? vendedorRootId : null,
+      plano_gratuito: planoGratuito,
+      desconto_mensalidade: descontoNum,
+      desconto_mes_referencia: descontoMesRef,
     };
 
     if (editPeixaria) {
