@@ -565,6 +565,7 @@ export function OrdersPage() {
                   order={o}
                   isPendente={false}
                   pagoExtra={pagoExtraByPedido.get(o.id) ?? 0}
+                  recebimentos={recebimentosByPedido.get(o.id) ?? []}
                   onCancel={isAdmin && !o.cancelado ? (o) => setCancelTarget(o) : undefined}
                   onQuitar={!o.cancelado ? (o) => setQuitarTarget(o) : undefined}
                 />
