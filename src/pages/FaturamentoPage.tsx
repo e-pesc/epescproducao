@@ -10,11 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SlideUpModal } from "@/components/SlideUpModal";
-import { Wallet, Calendar, ArrowDownCircle, FileText, ChevronLeft, ChevronRight, Plus, Receipt } from "lucide-react";
+import { Wallet, Calendar, ArrowDownCircle, FileText, ChevronLeft, ChevronRight, Plus, Receipt, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { formatBRL } from "@/lib/format";
+import { CancelReasonModal } from "@/components/CancelReasonModal";
 
 // ─── Card Skeleton ───
 function CardSkeleton() {
