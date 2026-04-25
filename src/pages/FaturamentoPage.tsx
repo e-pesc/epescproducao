@@ -720,7 +720,7 @@ export function FaturamentoPage() {
     .reduce((sum, c) => sum + Number(c.debito), 0), [clientes]);
 
   const totalSaidas = useMemo(() => pagamentosSaida
-    .filter((p) => inMonth(p.created_at))
+    .filter((p) => inMonth(p.created_at) && !p.cancelado)
     .reduce((sum, p) => sum + Number(p.valor), 0), [pagamentosSaida, filterMonth, filterYear]);
 
   const totalEntradas = useMemo(() => pagamentosEntrada
