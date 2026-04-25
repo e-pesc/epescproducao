@@ -351,7 +351,7 @@ export function PeixariasPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Confirmar pagamento?</AlertDialogTitle>
             <AlertDialogDescription>
-              Confirmar o recebimento da mensalidade de <strong>R$ {(confirmTarget?.mensalidade ?? 0).toFixed(2)}</strong> de{" "}
+              Confirmar o recebimento da mensalidade de <strong>{formatBRL(confirmTarget ? valorCobradoNoMes(confirmTarget, filterRef) : 0)}</strong> de{" "}
               <strong>{confirmTarget?.razao_social}</strong> referente a {formatMonthLabel(filterRef)}?
             </AlertDialogDescription>
           </AlertDialogHeader>
