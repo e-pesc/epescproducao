@@ -551,6 +551,63 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
           </p>
         </div>
 
+        <div>
+          <Label>Valor da Mensalidade</Label>
+          <Input
+            type="text"
+            value={planoGratuito ? "Gratuito" : formatBRL(parseFloat(mensalidade) || MENSALIDADE_BASE)}
+            disabled
+            readOnly
+            className="rounded-2xl h-12 bg-muted"
+          />
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Padrão: {formatBRL(MENSALIDADE_BASE)}.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-border p-3 space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label className="text-sm">Plano Gratuito</Label>
+              <p className="text-[11px] text-muted-foreground">Isenta esta peixaria de mensalidade</p>
+            </div>
+            <input
+              type="checkbox"
+              checked={planoGratuito}
+              onChange={(e) => {
+                setPlanoGratuito(e.target.checked);
+                if (e.target.checked) {
+                  setDesconto("0");
+                  setMensalidade("0");
+                  setVendaNegociada(false);
+                  setVendedorRootId("");
+                } else {
+                  setMensalidade(String(MENSALIDADE_BASE));
+                }
+              }}
+              className="w-5 h-5 accent-primary"
+            />
+          </div>
+        </div>
+
+        {!planoGratuito && (
+          <div className="rounded-2xl border border-border p-3 space-y-2">
+            <Label className="text-sm">Desconto na Mensalidade (mês atual)</Label>
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              value={desconto}
+              onChange={(e) => setDesconto(e.target.value)}
+              placeholder="0.00"
+              className="rounded-2xl h-12"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Aplicação única no mês atual. Excedente acima de {formatBRL(MENSALIDADE_BASE)} é creditado como comissão do Root negociador.
+            </p>
+          </div>
+        )}
+
         <div className="rounded-2xl border border-border p-3 space-y-3">
           <div className="flex items-center justify-between">
             <div>
@@ -560,6 +617,7 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
             <input
               type="checkbox"
               checked={vendaNegociada}
+              disabled={planoGratuito}
               onChange={(e) => {
                 setVendaNegociada(e.target.checked);
                 if (!e.target.checked) {
