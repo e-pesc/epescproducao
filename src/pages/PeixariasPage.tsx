@@ -194,17 +194,22 @@ export function PeixariasPage() {
             {commissions.map((c) => (
               <div key={c.user.id} className="rounded-3xl bg-card p-3 shadow-sm border-l-4 border-l-primary">
                 <p className="font-semibold text-sm text-foreground truncate">{c.user.name}</p>
-                <p className="text-[10px] text-muted-foreground">{c.count} peixaria(s) negociada(s)</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {c.count} peixaria(s) negociada(s){c.lancamentos > 0 ? ` • ${c.lancamentos} desconto(s) no mês` : ""}
+                </p>
                 <div className="grid grid-cols-2 gap-2 mt-2">
                   <div>
                     <p className="text-[10px] text-muted-foreground uppercase">Total</p>
-                    <p className="text-sm font-bold text-foreground">R$ {c.total.toFixed(2)}</p>
+                    <p className="text-sm font-bold text-foreground">{formatBRL(c.total)}</p>
                   </div>
                   <div>
                     <p className="text-[10px] text-muted-foreground uppercase">Confirmado</p>
-                    <p className="text-sm font-bold text-fish-treated">R$ {c.confirmed.toFixed(2)}</p>
+                    <p className="text-sm font-bold text-fish-treated">{formatBRL(c.confirmed)}</p>
                   </div>
                 </div>
+                {c.total === 0 && c.lancamentos > 0 && (
+                  <p className="text-[10px] text-muted-foreground mt-1 italic">Descontos ≤ {formatBRL(MENSALIDADE_BASE)} — sem comissão</p>
+                )}
               </div>
             ))}
           </div>
