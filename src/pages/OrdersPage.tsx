@@ -452,11 +452,21 @@ export function OrdersPage() {
     const map = new Map<string, number>();
     for (const p of pagamentosEntrada) {
       if (p.cancelado || !p.pedido_id) continue;
-      // entradas iniciais já foram registradas como tipo "parcial"/"total" no fulfill;
-      // recebimentos posteriores são tipo "parcial"/"total" com origem "recebimento"
       if (p.origem === "recebimento") {
         map.set(p.pedido_id, +(((map.get(p.pedido_id) ?? 0) + Number(p.valor))).toFixed(2));
       }
+    }
+    return map;
+  }, [pagamentosEntrada]);
+
+  // Lista detalhada de recebimentos por pedido (para o recibo de WhatsApp)
+  const recebimentosByPedido = useMemo(() => {
+    const map = new Map<string, { data: string; valor: number; tipo: string }[]>();
+    for (const p of pagamentosEntrada) {
+      if (p.cancelado || !p.pedido_id || p.origem !== "recebimento") continue;
+      const arr = map.get(p.pedido_id) ?? [];
+      arr.push({ data: p.created_at, valor: Number(p.valor), tipo: p.tipo });
+      map.set(p.pedido_id, arr);
     }
     return map;
   }, [pagamentosEntrada]);
