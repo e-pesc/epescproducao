@@ -363,11 +363,12 @@ function IncomeModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o: 
 // ─── Tab: A Receber ───
 function TabAReceber({ filterMonth, filterYear }: { filterMonth: number; filterYear: number }) {
   const { clientes, loading } = useClientes();
-  const { pagamentosEntrada, loading: loadingBilling, quitarReceita } = useBilling();
+  const { pagamentosEntrada, loading: loadingBilling, quitarReceita, cancelReceita } = useBilling();
   const { toast } = useToast();
   const [receiving, setReceiving] = useState<{ id: string; nome: string; debito: number } | undefined>();
   const [incomeOpen, setIncomeOpen] = useState(false);
   const [quitandoId, setQuitandoId] = useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; label: string } | null>(null);
 
   const debtors = clientes.filter((c) => Number(c.debito) > 0);
 
@@ -440,6 +441,9 @@ function TabAReceber({ filterMonth, filterYear }: { filterMonth: number; filterY
                 >
                   <Wallet className="w-4 h-4" /> {quitandoId === r.id ? "Processando..." : "Quitar"}
                 </Button>
+                <Button size="sm" variant="ghost" className="mt-2 h-8 w-full text-xs text-destructive hover:bg-destructive/10 gap-1" onClick={() => setCancelTarget({ id: r.id, label: desc })}>
+                  <X className="w-3.5 h-3.5" /> Cancelar lançamento
+                </Button>
               </div>
             );
           })}
@@ -447,6 +451,23 @@ function TabAReceber({ filterMonth, filterYear }: { filterMonth: number; filterY
       )}
       {receiving && <ReceiveModal open={!!receiving} onOpenChange={(o) => !o && setReceiving(undefined)} clientId={receiving.id} clientName={receiving.nome} debt={receiving.debito} />}
       <IncomeModal open={incomeOpen} onOpenChange={setIncomeOpen} />
+      {cancelTarget && (
+        <CancelReasonModal
+          open={!!cancelTarget}
+          onOpenChange={(o) => !o && setCancelTarget(null)}
+          title={`Cancelar receita "${cancelTarget.label}"`}
+          description="O lançamento será marcado como CANCELADO e removido de A Receber. A ação ficará registrada nos logs."
+          onConfirm={async (motivo) => {
+            try {
+              await cancelReceita(cancelTarget.id, motivo);
+              toast({ title: "Receita cancelada" });
+            } catch (e: any) {
+              toast({ title: "Erro", description: e.message, variant: "destructive" });
+              throw e;
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
