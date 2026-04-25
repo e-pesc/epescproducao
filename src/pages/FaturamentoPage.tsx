@@ -195,14 +195,17 @@ function EmptyState({ text }: { text: string }) {
 
 // ─── Tab: A Pagar ───
 function TabAPagar({ filterMonth, filterYear }: { filterMonth: number; filterYear: number }) {
-  const { dividasCompra, loading } = useBilling();
+  const { dividasCompra, loading, cancelDivida } = useBilling();
   const { fornecedores } = useFornecedores();
   const { produtos } = useProdutos();
+  const { toast } = useToast();
   const [payingDebt, setPayingDebt] = useState<DividaCompra | undefined>();
   const [expenseOpen, setExpenseOpen] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; label: string } | null>(null);
 
   const openDebts = dividasCompra.filter((d) => {
     if (d.quitado) return false;
+    if (d.cancelado) return false;
     const dt = new Date(d.created_at);
     return dt.getMonth() === filterMonth && dt.getFullYear() === filterYear;
   });
@@ -247,6 +250,11 @@ function TabAPagar({ filterMonth, filterYear }: { filterMonth: number; filterYea
                   <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{new Date(debt.created_at).toLocaleDateString("pt-BR")}</span>
                 </div>
                 <Button size="sm" className="w-full rounded-2xl" onClick={() => setPayingDebt(debt)}><Wallet className="w-4 h-4" /> Quitar</Button>
+                {isDespesa && (
+                  <Button size="sm" variant="ghost" className="mt-2 h-8 w-full text-xs text-destructive hover:bg-destructive/10 gap-1" onClick={() => setCancelTarget({ id: debt.id, label: debt.descricao || "Despesa" })}>
+                    <X className="w-3.5 h-3.5" /> Cancelar lançamento
+                  </Button>
+                )}
               </div>
             );
           })}
@@ -254,6 +262,23 @@ function TabAPagar({ filterMonth, filterYear }: { filterMonth: number; filterYea
       )}
       {payingDebt && <PayDebtModal open={!!payingDebt} onOpenChange={(o) => !o && setPayingDebt(undefined)} debt={payingDebt} />}
       <ExpenseModal open={expenseOpen} onOpenChange={setExpenseOpen} />
+      {cancelTarget && (
+        <CancelReasonModal
+          open={!!cancelTarget}
+          onOpenChange={(o) => !o && setCancelTarget(null)}
+          title={`Cancelar despesa "${cancelTarget.label}"`}
+          description="O lançamento será marcado como CANCELADO e removido de A Pagar. A ação ficará registrada nos logs."
+          onConfirm={async (motivo) => {
+            try {
+              await cancelDivida(cancelTarget.id, motivo);
+              toast({ title: "Despesa cancelada" });
+            } catch (e: any) {
+              toast({ title: "Erro", description: e.message, variant: "destructive" });
+              throw e;
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -338,11 +363,12 @@ function IncomeModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o: 
 // ─── Tab: A Receber ───
 function TabAReceber({ filterMonth, filterYear }: { filterMonth: number; filterYear: number }) {
   const { clientes, loading } = useClientes();
-  const { pagamentosEntrada, loading: loadingBilling, quitarReceita } = useBilling();
+  const { pagamentosEntrada, loading: loadingBilling, quitarReceita, cancelReceita } = useBilling();
   const { toast } = useToast();
   const [receiving, setReceiving] = useState<{ id: string; nome: string; debito: number } | undefined>();
   const [incomeOpen, setIncomeOpen] = useState(false);
   const [quitandoId, setQuitandoId] = useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<{ id: string; label: string } | null>(null);
 
   const debtors = clientes.filter((c) => Number(c.debito) > 0);
 
@@ -415,6 +441,9 @@ function TabAReceber({ filterMonth, filterYear }: { filterMonth: number; filterY
                 >
                   <Wallet className="w-4 h-4" /> {quitandoId === r.id ? "Processando..." : "Quitar"}
                 </Button>
+                <Button size="sm" variant="ghost" className="mt-2 h-8 w-full text-xs text-destructive hover:bg-destructive/10 gap-1" onClick={() => setCancelTarget({ id: r.id, label: desc })}>
+                  <X className="w-3.5 h-3.5" /> Cancelar lançamento
+                </Button>
               </div>
             );
           })}
@@ -422,6 +451,23 @@ function TabAReceber({ filterMonth, filterYear }: { filterMonth: number; filterY
       )}
       {receiving && <ReceiveModal open={!!receiving} onOpenChange={(o) => !o && setReceiving(undefined)} clientId={receiving.id} clientName={receiving.nome} debt={receiving.debito} />}
       <IncomeModal open={incomeOpen} onOpenChange={setIncomeOpen} />
+      {cancelTarget && (
+        <CancelReasonModal
+          open={!!cancelTarget}
+          onOpenChange={(o) => !o && setCancelTarget(null)}
+          title={`Cancelar receita "${cancelTarget.label}"`}
+          description="O lançamento será marcado como CANCELADO e removido de A Receber. A ação ficará registrada nos logs."
+          onConfirm={async (motivo) => {
+            try {
+              await cancelReceita(cancelTarget.id, motivo);
+              toast({ title: "Receita cancelada" });
+            } catch (e: any) {
+              toast({ title: "Erro", description: e.message, variant: "destructive" });
+              throw e;
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -667,14 +713,14 @@ export function FaturamentoPage() {
   const inMonth = (dateStr: string) => { const d = new Date(dateStr); return d.getMonth() === filterMonth && d.getFullYear() === filterYear; };
 
   const totalAPagar = useMemo(() => dividasCompra
-    .filter((d) => !d.quitado && inMonth(d.created_at))
+    .filter((d) => !d.quitado && !d.cancelado && inMonth(d.created_at))
     .reduce((sum, d) => sum + (Number(d.valor_total) - Number(d.valor_pago)), 0), [dividasCompra, filterMonth, filterYear]);
 
   const totalAReceber = useMemo(() => clientes
     .reduce((sum, c) => sum + Number(c.debito), 0), [clientes]);
 
   const totalSaidas = useMemo(() => pagamentosSaida
-    .filter((p) => inMonth(p.created_at))
+    .filter((p) => inMonth(p.created_at) && !p.cancelado)
     .reduce((sum, p) => sum + Number(p.valor), 0), [pagamentosSaida, filterMonth, filterYear]);
 
   const totalEntradas = useMemo(() => pagamentosEntrada
