@@ -139,19 +139,23 @@ export function PeixariasPage() {
   const prevMonth = () => { if (filterMonth === 0) { setFilterMonth(11); setFilterYear((y) => y - 1); } else setFilterMonth((m) => m - 1); };
   const nextMonth = () => { if (filterMonth === 11) { setFilterMonth(0); setFilterYear((y) => y + 1); } else setFilterMonth((m) => m + 1); };
 
-  // Commission per Root user (no mês filtrado)
+  // Comissão por Root (mês filtrado): apenas excedente do desconto sobre 59,90
+  // e somente quando o desconto se aplica AO MÊS filtrado (uso único, sem recorrência).
   const commissions = rootUsers.map((u) => {
     const peixariasDoRoot = peixarias.filter((p) => p.vendedor_root_id === u.id);
     let total = 0;
     let confirmed = 0;
     peixariasDoRoot.forEach((p) => {
-      const extra = Math.max(0, Number(p.mensalidade ?? 0) - MENSALIDADE_BASE);
+      const desconto = Number(p.desconto_mensalidade ?? 0);
+      const refMatch = p.desconto_mes_referencia === filterRef;
+      if (!refMatch) return;
+      const extra = Math.max(0, desconto - MENSALIDADE_BASE);
       if (extra <= 0) return;
       total += extra;
       if (isPagoMonth(p.id, filterRef)) confirmed += extra;
     });
     return { user: u, total, confirmed, count: peixariasDoRoot.length };
-  }).filter((c) => c.count > 0);
+  }).filter((c) => c.total > 0);
 
   const q = search.toLowerCase();
   const filtered = peixarias.filter(p =>
