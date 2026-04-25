@@ -252,6 +252,15 @@ export function PurchaseHistoryModal({ open, onOpenChange }: Props) {
                             }),
                             valor_total: totalCompra,
                             valor_pago: totalPago,
+                            pagamentos: totalPago > 0
+                              ? group
+                                  .filter((d) => Number(d.valor_pago ?? 0) > 0)
+                                  .map((d) => ({
+                                    data: d.created_at,
+                                    valor: Number(d.valor_pago),
+                                    rotulo: d.quitado ? "Quitação total" : "Pagamento parcial",
+                                  }))
+                              : [],
                           });
                         }}
                       >
