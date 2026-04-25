@@ -247,7 +247,10 @@ export function PeixariasPage() {
                         </div>
                       )}
                       <p className="text-xs text-muted-foreground">
-                        Pgto dia {p.dia_pagamento} • Mensalidade: R$ {(p.mensalidade ?? 0).toFixed(2)}
+                        Pgto dia {p.dia_pagamento} • {p.plano_gratuito ? <span className="font-semibold text-fish-treated">Plano Gratuito</span> : <>Mensalidade: R$ {(p.mensalidade ?? 0).toFixed(2)}</>}
+                        {!p.plano_gratuito && Number(p.desconto_mensalidade ?? 0) > 0 && p.desconto_mes_referencia === filterRef && (
+                          <> • <span className="text-amber-600">Desconto {formatBRL(Number(p.desconto_mensalidade))}</span></>
+                        )}
                       </p>
                       {vendedor && (
                         <p className="text-xs text-primary font-medium">Venda: {vendedor.name}</p>
