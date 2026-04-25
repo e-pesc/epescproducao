@@ -250,8 +250,8 @@ function MonthNavigator({ month, year, onPrev, onNext, searchValue, onSearchChan
 }
 
 // ─── Order Card ───
-function OrderCard({ order, isPendente, pagoExtra, onEdit, onFulfill, onDelete, onCancel, onQuitar }: {
-  order: Pedido; isPendente: boolean; pagoExtra?: number; onEdit?: (o: Pedido) => void; onFulfill?: (o: Pedido) => void; onDelete?: (o: Pedido) => void; onCancel?: (o: Pedido) => void; onQuitar?: (o: Pedido) => void;
+function OrderCard({ order, isPendente, pagoExtra, recebimentos, onEdit, onFulfill, onDelete, onCancel, onQuitar }: {
+  order: Pedido; isPendente: boolean; pagoExtra?: number; recebimentos?: { data: string; valor: number; tipo: string }[]; onEdit?: (o: Pedido) => void; onFulfill?: (o: Pedido) => void; onDelete?: (o: Pedido) => void; onCancel?: (o: Pedido) => void; onQuitar?: (o: Pedido) => void;
 }) {
   const { clientes } = useClientes();
   const { produtos } = useProdutos();
@@ -377,6 +377,19 @@ function OrderCard({ order, isPendente, pagoExtra, onEdit, onFulfill, onDelete, 
               const valorPago = order.prepaid || order.pagamento === "avista"
                 ? valorTotal
                 : Number(order.entrada ?? 0) + (pagoExtra ?? 0);
+              const pagamentosLista: { data: string | Date; valor: number; rotulo?: string }[] = [];
+              if (order.prepaid || order.pagamento === "avista") {
+                pagamentosLista.push({ data: order.created_at, valor: valorTotal, rotulo: "À vista" });
+              } else {
+                if (Number(order.entrada ?? 0) > 0) {
+                  pagamentosLista.push({ data: order.created_at, valor: Number(order.entrada), rotulo: "Entrada" });
+                }
+                (recebimentos ?? []).forEach((r) => pagamentosLista.push({
+                  data: r.data,
+                  valor: r.valor,
+                  rotulo: r.tipo === "total" ? "Quitação total" : "Quitação parcial",
+                }));
+              }
               openWhatsappReceipt(client?.whatsapp, {
                 tipo: "Pedido",
                 peixaria: peixariaNome ?? undefined,
@@ -389,6 +402,7 @@ function OrderCard({ order, isPendente, pagoExtra, onEdit, onFulfill, onDelete, 
                 }),
                 valor_total: valorTotal,
                 valor_pago: valorPago,
+                pagamentos: pagamentosLista,
               });
             }}
           >
