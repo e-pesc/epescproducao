@@ -350,6 +350,8 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
   const [mensalidade, setMensalidade] = useState(String(MENSALIDADE_BASE));
   const [vendaNegociada, setVendaNegociada] = useState(false);
   const [vendedorRootId, setVendedorRootId] = useState<string>("");
+  const [planoGratuito, setPlanoGratuito] = useState(false);
+  const [desconto, setDesconto] = useState("0");
   const [rootUsersList, setRootUsersList] = useState<AppUser[]>([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -375,6 +377,8 @@ function PeixariaFormModal({ open, onOpenChange, editPeixaria, onSaved }: {
       setMensalidade(String(m));
       setVendaNegociada(!!editPeixaria?.vendedor_root_id || (m > MENSALIDADE_BASE));
       setVendedorRootId(editPeixaria?.vendedor_root_id ?? "");
+      setPlanoGratuito(!!editPeixaria?.plano_gratuito);
+      setDesconto(String(editPeixaria?.desconto_mensalidade ?? 0));
       setEmail("");
       setPassword("");
 
