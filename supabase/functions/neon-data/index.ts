@@ -140,12 +140,15 @@ Deno.serve(async req => {
     const newRole=row.role; delete row.role;
     if(!Object.keys(row).length && newRole===undefined) throw Error('Alteração vazia');
     if(table==='app_users' && (row.auth_user_id!==undefined || row.peixaria_id!==undefined || row.id!==undefined)) throw Error('Identidade imutável');
-    const matches=await sql.query(`SELECT t.id${table==='app_users'?', (SELECT role FROM public.user_roles WHERE user_id=t.id LIMIT 1) AS role':''} FROM ${name} t${clause} LIMIT 201`,values);
+    const matches=await sql.query(`SELECT t.id${table==='app_users'?', (SELECT role FROM public.user_roles WHERE user_id=t.id LIMIT 1) AS role':''}${requiredTenant.has(table)?', t.peixaria_id':''} FROM ${name} t${clause} LIMIT 201`,values);
     if(matches.length>200) throw Error('Muitos registros');
     if(table==='app_users'&&matches.some(r=>r.id===actor.id && (row.active===false||newRole!==undefined))) return reply({error:'Não é permitido alterar seu próprio acesso'},403);
     if(table==='app_users'&&!root&&matches.some(r=>r.role==='root')) return reply({error:'Sem permissão'},403);
     if(table==='app_users'&&!root&&newRole==='administrador'&&actor.role!=='administrador') return reply({error:'Sem permissão'},403);
     if(newRole!==undefined && (!['root','administrador','vendedor'].includes(String(newRole)) || table!=='app_users')) throw Error('Perfil inválido');
+    if(root && requiredTenant.has(table) && Object.keys(row).some(c => (linked[table]??[]).some(([field])=>field===c))) {
+      for(const match of matches) await checkReferences(sql,table,{...row,peixaria_id:row.peixaria_id??match.peixaria_id},actor,root,linked);
+    }
     const updated=[];
     for(const match of matches) {
       if(Object.keys(row).length) {
