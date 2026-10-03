@@ -1,0 +1,2 @@
+- Keep the existing application data and auth on Lovable Cloud; use Neon only from authenticated server-side functions through the shared Drizzle connection, because DATABASE_URL must never reach the browser and migration of current data was not requested.
+- Keep external Neon schema SQL in `neon/migrations`, separate from Lovable Cloud migrations, because the two databases have independent schemas and deployment lifecycles.
