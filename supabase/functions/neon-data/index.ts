@@ -162,7 +162,7 @@ Deno.serve(async req => {
     return reply({data:null,error:null,count:matches.length});
   } catch(error) {
     console.error('Neon data operation failed',error instanceof Error?error.name:'UnknownError');
-    return reply({error:error instanceof Error && ['Coluna inválida','Filtro inválido','Ordenação inválida','Valor inválido','Lista inválida','Dados inválidos','Usuário inválido','Perfil inválido','Identidade imutável','Filtro obrigatório para alteração','Muitos registros','Alteração vazia','Referência de outra peixaria','Peixaria obrigatória','Peixaria inválida'].includes(error.message)?error.message:'Falha ao acessar os dados'},400);
+    return reply({error:error instanceof Error && ['Coluna inválida','Filtro inválido','Ordenação inválida','Valor inválido','Lista inválida','Dados inválidos','Usuário inválido','Perfil inválido','Identidade imutável','Filtro obrigatório para alteração','Muitos registros','Alteração vazia','Referência de outra peixaria','Peixaria obrigatória','Peixaria inválida','Peixaria imutável'].includes(error.message)?error.message:'Falha ao acessar os dados'},400);
   }
 });
 
