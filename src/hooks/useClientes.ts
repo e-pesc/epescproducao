@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { dataClient as supabase } from "@/lib/dataClient";
 import { useAuth } from "@/hooks/useAuth";
 
 export interface Cliente {

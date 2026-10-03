@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { dataClient } from "@/lib/dataClient";
 import type { Session, User } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -29,12 +30,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchRoleAndPeixaria = async (): Promise<{ role: AppRole | null; peixariaId: string | null }> => {
     try {
-      const [{ data: roleData, error: roleError }, { data: peixData }] = await Promise.all([
-        supabase.rpc("get_my_role"),
-        supabase.rpc("get_my_peixaria_id"),
-      ]);
-      if (roleError) throw roleError;
-      return { role: roleData ?? null, peixariaId: peixData ?? null };
+      const { data: profile, error } = await dataClient.functions.invoke("neon-data", {
+        body: { table: "app_users", action: "profile" },
+      });
+      if (error || profile?.error) throw error ?? new Error(profile.error);
+      return { role: (profile?.data?.role as AppRole) ?? null, peixariaId: profile?.data?.peixaria_id ?? null };
     } catch {
       return { role: null, peixariaId: null };
     }

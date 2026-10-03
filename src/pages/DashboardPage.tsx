@@ -3,7 +3,7 @@ import { useVendas } from "@/hooks/useVendas";
 import { usePedidos } from "@/hooks/usePedidos";
 import { useProdutos } from "@/hooks/useProdutos";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { dataClient as supabase } from "@/lib/dataClient";
 import { ShoppingCart, TrendingUp, Fish, TrendingDown, Percent } from "lucide-react";
 import { formatBRL } from "@/lib/format";
 import { SettingsMenu } from "@/components/SettingsMenu";

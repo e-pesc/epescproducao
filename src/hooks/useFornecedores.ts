@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { dataClient as supabase } from "@/lib/dataClient";
 import { useAuth } from "@/hooks/useAuth";
 
 export interface Fornecedor {

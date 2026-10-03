@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { dataClient as supabase } from "@/lib/dataClient";
 import { useAuth } from "@/hooks/useAuth";
 
 /** Returns the current tenant's display name (razao_social). */

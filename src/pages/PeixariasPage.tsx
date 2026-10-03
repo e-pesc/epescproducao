@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { dataClient as supabase } from "@/lib/dataClient";
 import { useAuth } from "@/hooks/useAuth";
 import { formatBRL } from "@/lib/format";
 
