@@ -6,7 +6,7 @@ import { z } from 'npm:zod@3.25.76';
 const tables = ['activity_logs','app_users','clientes','dividas_compra','fornecedores','itens_pedido','itens_venda','movimentacoes_estoque','pagamentos_entrada','pagamentos_mensalidade','pagamentos_saida','pedidos','peixarias','produtos','vendas'] as const;
 const Table = z.enum(tables);
 const Filter = z.object({ column:z.string().regex(/^[a-z_]+$/), op:z.enum(['eq','gte','lte','in','not_null']), value:z.unknown().optional() });
-const Body = z.object({ table:Table, action:z.enum(['select','insert','update','delete']), columns:z.string().max(500).default('*'), filters:z.array(Filter).max(20).default([]), order:z.object({column:z.string().regex(/^[a-z_]+$/),ascending:z.boolean()}).optional(), limit:z.number().int().min(1).max(5000).optional(), rows:z.union([z.record(z.unknown()),z.array(z.record(z.unknown()))]).optional(), single:z.boolean().optional(), maybeSingle:z.boolean().optional(), returning:z.boolean().optional() });
+const Body = z.object({ table:Table, action:z.enum(['select','insert','update','delete','profile']), columns:z.string().max(500).default('*'), filters:z.array(Filter).max(20).default([]), order:z.object({column:z.string().regex(/^[a-z_]+$/),ascending:z.boolean()}).optional(), limit:z.number().int().min(1).max(5000).optional(), rows:z.union([z.record(z.unknown()),z.array(z.record(z.unknown()))]).optional(), single:z.boolean().optional(), maybeSingle:z.boolean().optional(), returning:z.boolean().optional() });
 type TableName = z.infer<typeof Table>;
 const id = (name:string) => '"'+name+'"';
 const reply = (body:unknown,status=200) => new Response(JSON.stringify(body), { status, headers:{...corsHeaders,'Content-Type':'application/json'} });
@@ -38,6 +38,7 @@ Deno.serve(async req => {
     const actorRows=await sql.query(`SELECT u.id,u.name,u.peixaria_id,u.active,r.role,p.ativo AS tenant_active FROM public.app_users u JOIN public.user_roles r ON r.user_id=u.id LEFT JOIN public.peixarias p ON p.id=u.peixaria_id WHERE u.auth_user_id=$1 LIMIT 1`,[user.id]);
     const actor=actorRows[0] as {id:string;name:string;peixaria_id:string|null;active:boolean;role:string;tenant_active:boolean|null}|undefined;
     if(!actor?.active || (actor.role!=='root' && (!actor.peixaria_id || !actor.tenant_active))) return reply({error:'Sem permissão'},403);
+    if(input.action==='profile') return reply({data:{role:actor.role,peixaria_id:actor.peixaria_id},error:null});
     const root=actor.role==='root', admin=actor.role==='administrador', table:TableName=input.table;
     if(table==='pagamentos_mensalidade' && !root) return reply({error:'Sem permissão'},403);
     if(input.action==='select') {
