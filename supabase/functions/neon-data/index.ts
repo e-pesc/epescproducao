@@ -154,7 +154,7 @@ Deno.serve(async req => {
   }
 });
 
-async function checkReferences(sql:ReturnType<typeof neon>,table:string,row:Record<string,unknown>,actor:{peixaria_id:string|null},root:boolean,refs:Record<string,Array<[string,string]>>) {
+async function checkReferences(sql:ReturnType<typeof neon<false,false>>,table:string,row:Record<string,unknown>,actor:{peixaria_id:string|null},root:boolean,refs:Record<string,Array<[string,string]>>) {
   for(const [field,target] of refs[table]??[]) {
     const value=row[field];if(!value) continue;
     const matches=await sql.query(`SELECT ${id(tenantTable(target))} AS tenant FROM public.${id(target)} WHERE id=$1 LIMIT 1`,[value]);
