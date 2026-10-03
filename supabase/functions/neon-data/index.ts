@@ -19,6 +19,7 @@ const linked:Record<string,Array<[string,string]>> = {
   pagamentos_entrada:[['cliente_id','clientes'],['pedido_id','pedidos'],['venda_id','vendas'],['produto_id','produtos']],
 };
 const tenantTable = (table:string) => table==='peixarias' ? 'id' : 'peixaria_id';
+const requiredTenant = new Set(['clientes','fornecedores','produtos','movimentacoes_estoque','pedidos','itens_pedido','vendas','itens_venda','dividas_compra','pagamentos_saida','pagamentos_entrada']);
 
 Deno.serve(async req => {
   if(req.method==='OPTIONS') return new Response('ok',{headers:corsHeaders});
@@ -97,6 +98,7 @@ Deno.serve(async req => {
           if(!root) row.peixaria_id=actor.peixaria_id;
         } else if(table==='activity_logs') {row.user_id=user.id;row.user_name=String(actor.name??'Usuário');if(!root) row.peixaria_id=actor.peixaria_id;}
         else if(!root && table!=='peixarias') row.peixaria_id=actor.peixaria_id;
+        else if(root && requiredTenant.has(table) && !row.peixaria_id) throw Error('Peixaria obrigatória');
         if(Object.keys(row).some(c=>!allowed.has(c)&&!(table==='app_users'&&c==='role'))) throw Error('Coluna inválida');
         if(table==='app_users' && (!['root','administrador','vendedor'].includes(String(row.role)) || !row.auth_user_id)) throw Error('Usuário inválido');
         if(table==='app_users' && !root && !row.peixaria_id) throw Error('Usuário inválido');
@@ -128,6 +130,7 @@ Deno.serve(async req => {
     if(!input.rows||Array.isArray(input.rows)) throw Error('Dados inválidos');
     const row={...input.rows} as Record<string,unknown>;
     if(!root && row.peixaria_id!==undefined && row.peixaria_id!==actor.peixaria_id) return reply({error:'Sem permissão'},403);
+    if(row.peixaria_id!==undefined && table!=='peixarias') { const p=await sql.query('SELECT id FROM public.peixarias WHERE id=$1',[row.peixaria_id]); if(!p.length) throw Error('Peixaria inválida'); }
     if(table==='app_users'&&row.role==='root'&&!root) return reply({error:'Sem permissão'},403);
     if(Object.keys(row).some(c=>!allowed.has(c)&&!(table==='app_users'&&c==='role'))) throw Error('Coluna inválida');
     await checkReferences(sql,table,row,actor,root,linked);
@@ -152,7 +155,7 @@ Deno.serve(async req => {
     return reply({data:null,error:null,count:matches.length});
   } catch(error) {
     console.error('Neon data operation failed',error instanceof Error?error.name:'UnknownError');
-    return reply({error:error instanceof Error && ['Coluna inválida','Filtro inválido','Ordenação inválida','Valor inválido','Lista inválida','Dados inválidos','Usuário inválido','Perfil inválido','Identidade imutável','Filtro obrigatório para alteração','Muitos registros','Alteração vazia','Referência de outra peixaria'].includes(error.message)?error.message:'Falha ao acessar os dados'},400);
+    return reply({error:error instanceof Error && ['Coluna inválida','Filtro inválido','Ordenação inválida','Valor inválido','Lista inválida','Dados inválidos','Usuário inválido','Perfil inválido','Identidade imutável','Filtro obrigatório para alteração','Muitos registros','Alteração vazia','Referência de outra peixaria','Peixaria obrigatória','Peixaria inválida'].includes(error.message)?error.message:'Falha ao acessar os dados'},400);
   }
 });
 
