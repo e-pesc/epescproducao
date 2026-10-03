@@ -1,6 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { count } from "npm:drizzle-orm@0.45.3";
 import { conexaoTeste, getNeonDb } from "../_shared/neon.ts";
+import { requireManager } from "../_shared/neon-admin.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,8 +31,8 @@ Deno.serve(async (req) => {
     if (userError || !userData.user) {
       return new Response(JSON.stringify({ error: "Não autorizado" }), { status: 401, headers: corsHeaders });
     }
-    const { data: role, error: roleError } = await caller.rpc("get_my_role");
-    if (roleError || role !== "root") {
+    const { caller: profile } = await requireManager(req);
+    if (profile.role !== "root") {
       return new Response(JSON.stringify({ error: "Sem permissão" }), { status: 403, headers: corsHeaders });
     }
 
