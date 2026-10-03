@@ -35,7 +35,7 @@ Deno.serve(async req => {
     const {data:{user},error:authError}=await authClient.auth.getUser(auth.slice(7));
     if(authError||!user) return reply({error:'Não autorizado'},401);
     const sql=neon(dbUrl);
-    const actorRows=await sql.query(`SELECT u.id,u.peixaria_id,u.active,r.role,p.ativo AS tenant_active FROM public.app_users u JOIN public.user_roles r ON r.user_id=u.id LEFT JOIN public.peixarias p ON p.id=u.peixaria_id WHERE u.auth_user_id=$1 LIMIT 1`,[user.id]);
+    const actorRows=await sql.query(`SELECT u.id,u.name,u.peixaria_id,u.active,r.role,p.ativo AS tenant_active FROM public.app_users u JOIN public.user_roles r ON r.user_id=u.id LEFT JOIN public.peixarias p ON p.id=u.peixaria_id WHERE u.auth_user_id=$1 LIMIT 1`,[user.id]);
     const actor=actorRows[0] as {id:string;peixaria_id:string|null;active:boolean;role:string;tenant_active:boolean|null}|undefined;
     if(!actor?.active || (actor.role!=='root' && (!actor.peixaria_id || !actor.tenant_active))) return reply({error:'Sem permissão'},403);
     const root=actor.role==='root', admin=actor.role==='administrador', table:TableName=input.table;
@@ -94,13 +94,14 @@ Deno.serve(async req => {
         if(table==='app_users') {
           if(!root && row.role==='root') return reply({error:'Sem permissão'},403);
           if(!root) row.peixaria_id=actor.peixaria_id;
-        } else if(table==='activity_logs') {row.user_id=user.id;row.user_name=String(actorRows[0].name??row.user_name??'Usuário');if(!root) row.peixaria_id=actor.peixaria_id;}
+        } else if(table==='activity_logs') {row.user_id=user.id;row.user_name=String(actor.name??'Usuário');if(!root) row.peixaria_id=actor.peixaria_id;}
         else if(!root && table!=='peixarias') row.peixaria_id=actor.peixaria_id;
         if(Object.keys(row).some(c=>!allowed.has(c)&&!(table==='app_users'&&c==='role'))) throw Error('Coluna inválida');
         if(table==='app_users' && (!['root','administrador','vendedor'].includes(String(row.role)) || !row.auth_user_id)) throw Error('Usuário inválido');
         await checkReferences(sql,table,row,actor,root,linked);
         const role=row.role;delete row.role;
         const cols=Object.keys(row), params=Object.values(row);
+        if(!cols.length) throw Error('Dados inválidos');
         const statement=`INSERT INTO ${name} AS t (${cols.map(id).join(',')}) VALUES (${cols.map((_,i)=>`$${i+1}`).join(',')}) RETURNING to_jsonb(t) AS record`;
         const created=await sql.query(statement,params);
         let record=created[0].record;
@@ -134,6 +135,7 @@ Deno.serve(async req => {
     if(matches.length>200) throw Error('Muitos registros');
     if(table==='app_users'&&matches.some(r=>r.id===actor.id && (row.active===false||newRole!==undefined))) return reply({error:'Não é permitido alterar seu próprio acesso'},403);
     if(table==='app_users'&&!root&&matches.some(r=>r.role==='root')) return reply({error:'Sem permissão'},403);
+    if(table==='app_users'&&!root&&newRole==='administrador'&&actor.role!=='administrador') return reply({error:'Sem permissão'},403);
     if(newRole!==undefined && (!['root','administrador','vendedor'].includes(String(newRole)) || table!=='app_users')) throw Error('Perfil inválido');
     const updated=[];
     for(const match of matches) {
@@ -156,6 +158,6 @@ async function checkReferences(sql:ReturnType<typeof neon>,table:string,row:Reco
     const value=row[field];if(!value) continue;
     const matches=await sql.query(`SELECT ${id(tenantTable(target))} AS tenant FROM public.${id(target)} WHERE id=$1 LIMIT 1`,[value]);
     const targetTenant=matches[0]?.tenant;
-    if(!targetTenant || (!root && targetTenant!==actor.peixaria_id) || (row.peixaria_id && target!=='peixarias' && targetTenant!==row.peixaria_id) || (target==='peixarias' && row.peixaria_id && value!==row.peixaria_id)) throw Error('Referência de outra peixaria');
+    if((!targetTenant && !(target==='app_users' && root)) || (!root && targetTenant!==actor.peixaria_id) || (row.peixaria_id && target!=='peixarias' && target!=='app_users' && targetTenant!==row.peixaria_id) || (target==='peixarias' && row.peixaria_id && value!==row.peixaria_id)) throw Error('Referência de outra peixaria');
   }
 }
