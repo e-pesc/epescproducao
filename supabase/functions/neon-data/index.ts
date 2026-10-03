@@ -53,6 +53,7 @@ Deno.serve(async req => {
     if(table==='app_users'&&input.action!=='select'&&!root&&!admin) return reply({error:'Sem permissão'},403);
     // Accounts must be provisioned alongside Cloud Auth by create-user/create-peixaria-admin.
     if(table==='app_users'&&input.action==='insert') return reply({error:'Use o cadastro de usuários'},403);
+    if(table==='app_users'&&input.action==='delete') return reply({error:'Desative o usuário em vez de excluir o vínculo de login'},403);
     const metadata=await sql.query(`SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1`,[table]);
     const allowed=new Set(metadata.map(x=>x.column_name as string));
     const selectCols=input.columns==='*'?'*':input.columns.split(',').map(s=>s.trim()).join(',');
