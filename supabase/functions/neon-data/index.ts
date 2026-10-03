@@ -1,4 +1,4 @@
-import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+const corsHeaders = { 'Access-Control-Allow-Origin':'*', 'Access-Control-Allow-Headers':'authorization, x-client-info, apikey, content-type' };
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { neon } from 'npm:@neondatabase/serverless@1.2.0';
 import { z } from 'npm:zod@3.25.76';
@@ -36,7 +36,7 @@ Deno.serve(async req => {
     if(authError||!user) return reply({error:'Não autorizado'},401);
     const sql=neon(dbUrl);
     const actorRows=await sql.query(`SELECT u.id,u.name,u.peixaria_id,u.active,r.role,p.ativo AS tenant_active FROM public.app_users u JOIN public.user_roles r ON r.user_id=u.id LEFT JOIN public.peixarias p ON p.id=u.peixaria_id WHERE u.auth_user_id=$1 LIMIT 1`,[user.id]);
-    const actor=actorRows[0] as {id:string;peixaria_id:string|null;active:boolean;role:string;tenant_active:boolean|null}|undefined;
+    const actor=actorRows[0] as {id:string;name:string;peixaria_id:string|null;active:boolean;role:string;tenant_active:boolean|null}|undefined;
     if(!actor?.active || (actor.role!=='root' && (!actor.peixaria_id || !actor.tenant_active))) return reply({error:'Sem permissão'},403);
     const root=actor.role==='root', admin=actor.role==='administrador', table:TableName=input.table;
     if(table==='pagamentos_mensalidade' && !root) return reply({error:'Sem permissão'},403);
