@@ -10,7 +10,7 @@ import { SearchableSelect } from "@/components/SearchableSelect";
 import { ShoppingCart, Check, Plus, Trash2, Pencil, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { dataClient as supabase } from "@/lib/dataClient";
 import { formatBRL } from "@/lib/format";
 import { SalesHistoryModal } from "@/components/SalesHistoryModal";
 

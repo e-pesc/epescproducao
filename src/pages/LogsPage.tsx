@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { ArrowLeft, Download, Search, Filter } from "lucide-react";
 import { formatBRL } from "@/lib/format";
 import { SlideUpModal } from "@/components/SlideUpModal";
-import { supabase } from "@/integrations/supabase/client";
+import { dataClient as supabase } from "@/lib/dataClient";
 
 interface LogsPageProps {
   onBack: () => void;

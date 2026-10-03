@@ -18,7 +18,7 @@ import { useBilling } from "@/hooks/useBilling";
 import { FileText, Plus, Pencil, CheckCircle2, Trash2, MapPin, Calendar, MessageCircle, ChevronLeft, ChevronRight, Search, XCircle, DollarSign } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { dataClient as supabase } from "@/lib/dataClient";
 import { formatBRL } from "@/lib/format";
 import { openWhatsappReceipt } from "@/lib/whatsappReceipt";
 import { usePeixariaInfo } from "@/hooks/usePeixariaInfo";
