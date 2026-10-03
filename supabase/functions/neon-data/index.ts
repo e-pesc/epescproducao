@@ -117,6 +117,7 @@ Deno.serve(async req => {
     if(table==='app_users'&&input.action==='delete') {
       const matches=await sql.query(`SELECT t.id FROM ${name} t${clause}`,values);
       if(matches.some(r=>r.id===actor.id)) return reply({error:'Não é permitido remover seu próprio acesso'},403);
+      if(!root) { const roles=await sql.query(`SELECT t.id,r.role FROM ${name} t JOIN public.user_roles r ON r.user_id=t.id${clause}`,values); if(roles.some(r=>r.role==='root')) return reply({error:'Sem permissão'},403); }
     }
     if(input.action==='delete') {
       const deleted=await sql.query(`DELETE FROM ${name} t${clause} RETURNING t.id`,values);
