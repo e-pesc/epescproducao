@@ -46,7 +46,7 @@ Deno.serve(async req => {
       if(table==='activity_logs'&&!root&&!admin) return reply({error:'Sem permissão'},403);
     } else if (!root && !admin) {
       const vendorInsert=['activity_logs','movimentacoes_estoque','pedidos','itens_pedido','vendas','itens_venda','pagamentos_entrada','pagamentos_saida','dividas_compra'];
-      const vendorUpdate=['pedidos','vendas','produtos','clientes','dividas_compra','pagamentos_entrada','pagamentos_saida'];
+      const vendorUpdate=['pedidos','clientes','dividas_compra'];
       if (!(input.action==='insert' && vendorInsert.includes(table)) && !(input.action==='update' && vendorUpdate.includes(table))) return reply({error:'Sem permissão'},403);
     }
     if(table==='peixarias'&&input.action!=='select'&&!root) return reply({error:'Sem permissão'},403);
