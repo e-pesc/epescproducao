@@ -1,2 +1,4 @@
 - Keep the existing application data and auth on Lovable Cloud; use Neon only from authenticated server-side functions through the shared Drizzle connection, because DATABASE_URL must never reach the browser and migration of current data was not requested.
 - Keep external Neon schema SQL in `neon/migrations`, separate from Lovable Cloud migrations, because the two databases have independent schemas and deployment lifecycles.
+- Keep Neon user roles in a separate user_roles table and leave external auth IDs without auth-schema foreign keys, because Neon does not host Lovable Cloud auth and roles must not be profile-editable.
+- Neon operational tables have RLS enabled without Cloud-dependent policies; authenticated server functions must authorize identity and tenant before using the owner connection, because Neon does not provide Cloud auth.uid().
