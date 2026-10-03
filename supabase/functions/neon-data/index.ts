@@ -132,6 +132,7 @@ Deno.serve(async req => {
     }
     if(!input.rows||Array.isArray(input.rows)) throw Error('Dados inválidos');
     const row={...input.rows} as Record<string,unknown>;
+    if(requiredTenant.has(table) && row.peixaria_id!==undefined) throw Error('Peixaria imutável');
     if(!root && row.peixaria_id!==undefined && row.peixaria_id!==actor.peixaria_id) return reply({error:'Sem permissão'},403);
     if(row.peixaria_id!==undefined && table!=='peixarias') { const p=await sql.query('SELECT id FROM public.peixarias WHERE id=$1',[row.peixaria_id]); if(!p.length) throw Error('Peixaria inválida'); }
     if(table==='app_users'&&row.role==='root'&&!root) return reply({error:'Sem permissão'},403);
@@ -170,6 +171,6 @@ async function checkReferences(sql:ReturnType<typeof neon<false,false>>,table:st
     const value=row[field];if(!value) continue;
     const matches=await sql.query(`SELECT ${id(tenantTable(target))} AS tenant FROM public.${id(target)} WHERE id=$1 LIMIT 1`,[value]);
     const targetTenant=matches[0]?.tenant;
-    if((!targetTenant && !(target==='app_users' && root)) || (!root && targetTenant!==actor.peixaria_id) || (row.peixaria_id && target!=='peixarias' && target!=='app_users' && targetTenant!==row.peixaria_id) || (target==='peixarias' && row.peixaria_id && value!==row.peixaria_id)) throw Error('Referência de outra peixaria');
+    if(!matches.length || (targetTenant===null && !(target==='app_users' && root)) || (!root && targetTenant!==actor.peixaria_id) || (row.peixaria_id && target!=='peixarias' && target!=='app_users' && targetTenant!==row.peixaria_id) || (target==='peixarias' && row.peixaria_id && value!==row.peixaria_id)) throw Error('Referência de outra peixaria');
   }
 }
