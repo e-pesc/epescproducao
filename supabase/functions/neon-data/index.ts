@@ -99,6 +99,7 @@ Deno.serve(async req => {
         else if(!root && table!=='peixarias') row.peixaria_id=actor.peixaria_id;
         if(Object.keys(row).some(c=>!allowed.has(c)&&!(table==='app_users'&&c==='role'))) throw Error('Coluna inválida');
         if(table==='app_users' && (!['root','administrador','vendedor'].includes(String(row.role)) || !row.auth_user_id)) throw Error('Usuário inválido');
+        if(table==='app_users' && !root && !row.peixaria_id) throw Error('Usuário inválido');
         await checkReferences(sql,table,row,actor,root,linked);
         const role=row.role;delete row.role;
         const cols=Object.keys(row), params=Object.values(row);
